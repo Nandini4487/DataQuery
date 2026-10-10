@@ -1,0 +1,41 @@
+/* Tailwind v4 entry point — @import replaces the old @tailwind directives */
+@import "tailwindcss";
+
+/* ─── Design tokens from SPEC §2.2 ────────────────────────────────────────
+   Declared as CSS custom properties so every component can reference them.
+   Tailwind v4 reads these via @theme and maps them to utility classes.     */
+@theme {
+  /* Brand */
+  --color-primary:          #2563EB;
+  --color-primary-hover:    #1D4ED8;
+
+  /* Surfaces */
+  --color-background:       #F8FAFC;
+  --color-surface:          #FFFFFF;
+
+  /* Text */
+  --color-text-primary:     #0F172A;
+  --color-text-secondary:   #64748B;
+
+  /* Structural */
+  --color-border:           #E2E8F0;
+
+  /* Semantic */
+  --color-success:          #16A34A;
+  --color-warning:          #D97706;
+  --color-error:            #DC2626;
+
+  /* Typography — SPEC §2.3 */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  /* Border radius — SPEC §2.3 */
+  --radius-card:   0.75rem;   /* 12px */
+  --radius-input:  0.5rem;    /* 8px  */
+}
+
+/* ─── Base ─────────────────────────────────────────────────────────────── */
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-background);
+  color: var(--color-text-primary);
+}
