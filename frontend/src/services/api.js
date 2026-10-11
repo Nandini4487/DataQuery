@@ -72,3 +72,11 @@ export async function deleteDataset(datasetId) {
     method: 'DELETE',
   })
 }
+
+/** POST /api/datasets/{id}/ask - ask a question against a dataset */
+export async function askQuestion(datasetId, question) {
+  return request(`/api/datasets/${datasetId}/ask`, {
+    method: 'POST',
+    body: JSON.stringify({ question }),
+  })
+}
