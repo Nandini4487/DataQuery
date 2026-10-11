@@ -18,6 +18,7 @@ class Settings(BaseSettings):
 
     # Upload limits
     max_upload_size_mb: int = 10
+    upload_dir: str = "./uploads"
 
     # ChromaDB — Phase 3
     chroma_persist_directory: str = "./data/chroma"
