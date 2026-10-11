@@ -42,3 +42,16 @@ async def query_validation_error_handler(
         status_code=422,
         content={"error": exc.error_code, "message": exc.message},
     )
+
+
+async def plan_error_handler(
+    request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    """Return the standard error shape for 422 plan errors."""
+    error_code = getattr(exc, "error_code", "plan_error")
+    message = getattr(exc, "message", str(exc))
+    return JSONResponse(
+        status_code=422,
+        content={"error": error_code, "message": message},
+    )

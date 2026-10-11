@@ -32,6 +32,14 @@ class AnalysisPlan(BaseModel):
     limit: int | None = None
 
 
+class PlannerOutput(BaseModel):
+    """Output from the query planner: supported flag, reason if unsupported, and plan."""
+
+    supported: bool
+    reason: str = ""
+    plan: AnalysisPlan | None = None
+
+
 class PlanResult(BaseModel):
     """Result of executing an AnalysisPlan."""
 

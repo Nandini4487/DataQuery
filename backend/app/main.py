@@ -10,8 +10,10 @@ from app.core.config import settings
 from app.core.errors import (
     generic_exception_handler,
     not_found_handler,
+    plan_error_handler,
     query_validation_error_handler,
 )
+from app.services.query_planner import PlanError
 from app.services.query_validator import QueryValidationError
 
 logging.basicConfig(
@@ -34,6 +36,7 @@ app.add_middleware(
 app.add_exception_handler(Exception, generic_exception_handler)
 app.add_exception_handler(404, not_found_handler)
 app.add_exception_handler(QueryValidationError, query_validation_error_handler)
+app.add_exception_handler(PlanError, plan_error_handler)
 
 # --- Routers ---
 app.include_router(health.router, prefix="/api")
