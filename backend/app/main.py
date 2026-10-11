@@ -7,7 +7,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import datasets, health
 from app.core.config import settings
-from app.core.errors import generic_exception_handler, not_found_handler
+from app.core.errors import (
+    generic_exception_handler,
+    not_found_handler,
+    query_validation_error_handler,
+)
+from app.services.query_validator import QueryValidationError
 
 logging.basicConfig(
     level=logging.INFO,
@@ -28,6 +33,7 @@ app.add_middleware(
 # --- Exception handlers ---
 app.add_exception_handler(Exception, generic_exception_handler)
 app.add_exception_handler(404, not_found_handler)
+app.add_exception_handler(QueryValidationError, query_validation_error_handler)
 
 # --- Routers ---
 app.include_router(health.router, prefix="/api")

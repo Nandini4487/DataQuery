@@ -27,7 +27,7 @@ class AnalysisPlan(BaseModel):
     columns: list[str] = Field(default_factory=list)
     filters: list[FilterCondition | dict[str, Any]] = Field(default_factory=list)
     group_by: list[str] = Field(default_factory=list)
-    agg: Literal["sum", "avg", "min", "max", "count"] | None = None
+    agg: str | None = None
     sort: SortInstruction | dict[str, Any] | None = None
     limit: int | None = None
 
