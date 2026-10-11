@@ -163,3 +163,84 @@ def test_upload_invalid_file_returns_standard_error(client: TestClient) -> None:
     assert "error" in body_empty
     assert "message" in body_empty
     assert body_empty["error"] == "empty_csv"
+
+
+def test_ask_valid_dataset_returns_table_and_chart(
+    client: TestClient,
+    sample_csv_bytes: bytes,
+    tmp_upload_dir: Path,
+) -> None:
+    """POST /api/datasets/{id}/ask returns AnswerResponse with table and chart_spec."""
+    upload_res = client.post(
+        "/api/datasets",
+        files={"file": ("sales.csv", sample_csv_bytes, "text/csv")},
+    )
+    dataset_id = upload_res.json()["dataset_id"]
+
+    res = client.post(
+        f"/api/datasets/{dataset_id}/ask",
+        json={"question": "What is the total revenue?"},
+    )
+    assert res.status_code == 200
+    data = res.json()
+
+    assert data["answer_text"] == "Stub response (LLM not connected yet)"
+    assert "table" in data
+    assert data["table"] is not None
+    assert "columns" in data["table"]
+    assert "rows" in data["table"]
+    assert data["table"]["rows"][0]["revenue"] == 240000
+
+    assert "chart_spec" in data
+    assert data["chart_spec"] is not None
+    assert "type" in data["chart_spec"]
+    assert "data" in data["chart_spec"]
+    assert data["citations"] == []
+
+
+def test_ask_unknown_dataset_returns_standard_error(client: TestClient) -> None:
+    """POST /api/datasets/{id}/ask with unknown dataset_id returns 404 standard error."""
+    unknown_id = str(uuid.uuid4())
+    res = client.post(
+        f"/api/datasets/{unknown_id}/ask",
+        json={"question": "Any question?"},
+    )
+    assert res.status_code == 404
+    body = res.json()
+    assert "error" in body
+    assert "message" in body
+    assert body["error"] == "not_found"
+
+
+def test_ask_empty_question_returns_422(
+    client: TestClient,
+    sample_csv_bytes: bytes,
+    tmp_upload_dir: Path,
+) -> None:
+    """POST /api/datasets/{id}/ask with empty, whitespace, or missing question returns 422."""
+    upload_res = client.post(
+        "/api/datasets",
+        files={"file": ("sales.csv", sample_csv_bytes, "text/csv")},
+    )
+    dataset_id = upload_res.json()["dataset_id"]
+
+    # Empty string
+    res_empty = client.post(
+        f"/api/datasets/{dataset_id}/ask",
+        json={"question": ""},
+    )
+    assert res_empty.status_code == 422
+
+    # Whitespace only
+    res_spaces = client.post(
+        f"/api/datasets/{dataset_id}/ask",
+        json={"question": "   \n\t "},
+    )
+    assert res_spaces.status_code == 422
+
+    # Missing question key
+    res_missing = client.post(
+        f"/api/datasets/{dataset_id}/ask",
+        json={},
+    )
+    assert res_missing.status_code == 422

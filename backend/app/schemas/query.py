@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class FilterCondition(BaseModel):
@@ -39,3 +39,16 @@ class PlanResult(BaseModel):
     rows: list[dict[str, Any]] = Field(default_factory=list)
     row_count: int = 0
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class AskRequest(BaseModel):
+    """Request payload for asking questions against a dataset."""
+
+    question: str = Field(..., min_length=1)
+
+    @field_validator("question")
+    @classmethod
+    def validate_not_whitespace(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("Question cannot be empty or whitespace only.")
+        return v
