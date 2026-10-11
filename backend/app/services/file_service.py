@@ -1,13 +1,20 @@
 from __future__ import annotations
 
 import io
+import json
+import logging
+import shutil
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 
 from app.core.config import settings
+from app.schemas.dataset import DatasetMeta
+
+logger = logging.getLogger(__name__)
 
 
 class FileValidationError(ValueError):
@@ -155,10 +162,11 @@ def save_csv_upload(
 
     Generates a UUID dataset_id and stores the file at uploads/<dataset_id>/data.csv.
     Never uses the uploaded filename in the storage path.
+    Saves metadata to uploads/<dataset_id>/meta.json so it survives server restarts.
     Returns the generated dataset_id.
     """
     validate_filename(filename)
-    _df, text = validate_csv_content(content, max_size_mb=max_size_mb)
+    df, text = validate_csv_content(content, max_size_mb=max_size_mb)
 
     dataset_id = str(uuid.uuid4())
     target_dir = get_dataset_dir(dataset_id, base_dir=base_dir)
@@ -166,6 +174,16 @@ def save_csv_upload(
 
     file_path = target_dir / "data.csv"
     file_path.write_text(text, encoding="utf-8")
+
+    meta = {
+        "dataset_id": dataset_id,
+        "filename": filename,
+        "file_size_bytes": len(content),
+        "row_count": int(df.shape[0]),
+        "created_at": datetime.now(UTC).isoformat(),
+    }
+    meta_path = target_dir / "meta.json"
+    meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
 
     return dataset_id
 
@@ -179,5 +197,43 @@ def read_dataset(dataset_id: Any, base_dir: Path | str | None = None) -> pd.Data
     """Read a stored dataset CSV by dataset_id."""
     file_path = get_dataset_file_path(dataset_id, base_dir=base_dir)
     if not file_path.exists():
-        raise FileNotFoundError(f"Dataset '{dataset_id}' not found at {file_path}")
+        raise FileNotFoundError(f"Dataset '{dataset_id}' not found.")
     return pd.read_csv(file_path)
+
+
+def get_dataset_meta(dataset_id: Any, base_dir: Path | str | None = None) -> DatasetMeta:
+    """Load metadata from disk (meta.json or reconstructed from data.csv)."""
+    clean_id = validate_dataset_id(dataset_id)
+    target_dir = get_dataset_dir(clean_id, base_dir=base_dir)
+    if not target_dir.exists():
+        raise FileNotFoundError(f"Dataset '{clean_id}' not found.")
+
+    meta_path = target_dir / "meta.json"
+    if meta_path.exists():
+        try:
+            data = json.loads(meta_path.read_text(encoding="utf-8"))
+            return DatasetMeta(**data)
+        except (json.JSONDecodeError, ValueError, OSError):
+            logger.warning("Failed to parse %s, falling back to data.csv", meta_path)
+
+    # Fallback: reconstruct from data.csv on disk
+    file_path = target_dir / "data.csv"
+    if not file_path.exists():
+        raise FileNotFoundError(f"Dataset '{clean_id}' not found.")
+
+    df = pd.read_csv(file_path)
+    return DatasetMeta(
+        dataset_id=clean_id,
+        filename="data.csv",
+        file_size_bytes=file_path.stat().st_size,
+        row_count=int(df.shape[0]),
+    )
+
+
+def delete_dataset(dataset_id: Any, base_dir: Path | str | None = None) -> None:
+    """Delete the dataset directory from disk."""
+    clean_id = validate_dataset_id(dataset_id)
+    target_dir = get_dataset_dir(clean_id, base_dir=base_dir)
+    if not target_dir.exists():
+        raise FileNotFoundError(f"Dataset '{clean_id}' not found.")
+    shutil.rmtree(target_dir)

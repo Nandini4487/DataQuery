@@ -5,7 +5,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import health
+from app.api import datasets, health
 from app.core.config import settings
 from app.core.errors import generic_exception_handler, not_found_handler
 
@@ -31,3 +31,4 @@ app.add_exception_handler(404, not_found_handler)
 
 # --- Routers ---
 app.include_router(health.router, prefix="/api")
+app.include_router(datasets.router, prefix="/api")
