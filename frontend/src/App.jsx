@@ -1,101 +1,171 @@
 import { useState, useEffect } from 'react'
-import { healthCheck } from './services/api'
+import { healthCheck, deleteDataset } from './services/api'
+import FileUploader from './components/upload/FileUploader'
+import DatasetSummary from './components/dataset/DatasetSummary'
+import DataPreviewTable from './components/dataset/DataPreviewTable'
 import './index.css'
 
-/**
- * App root — Phase 0 only.
- * Calls healthCheck() on mount and shows loading / ok / error states
- * using the design tokens from SPEC §2.2.
- */
 export default function App() {
-  const [status, setStatus] = useState('loading') // 'loading' | 'ok' | 'error'
-  const [errorMsg, setErrorMsg] = useState('')
+  const [healthStatus, setHealthStatus] = useState('loading') // 'loading' | 'ok' | 'error'
+  const [currentDataset, setCurrentDataset] = useState(null) // DatasetMeta object or null
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     healthCheck().then(({ ok, data }) => {
       if (ok && data?.status === 'ok') {
-        setStatus('ok')
+        setHealthStatus('ok')
       } else {
-        setStatus('error')
-        setErrorMsg(data?.message ?? 'Backend did not return status ok.')
+        setHealthStatus('error')
       }
     })
   }, [])
 
+  const handleUploadSuccess = (meta) => {
+    setCurrentDataset(meta)
+  }
+
+  const handleReset = () => {
+    setCurrentDataset(null)
+  }
+
+  const handleDelete = async () => {
+    if (!currentDataset?.dataset_id) return
+    setIsDeleting(true)
+    await deleteDataset(currentDataset.dataset_id)
+    setIsDeleting(false)
+    setCurrentDataset(null)
+  }
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-6 px-4"
-         style={{ backgroundColor: 'var(--color-background)' }}>
-
-      {/* ── Header ─────────────────────────────────────────────────── */}
-      <header className="text-center">
-        <h1 className="text-3xl font-bold tracking-tight"
-            style={{ color: 'var(--color-text-primary)' }}>
-          DataQuery AI
-        </h1>
-        <p className="mt-2 text-sm"
-           style={{ color: 'var(--color-text-secondary)' }}>
-          Full-Stack AI Data Analyst
-        </p>
-      </header>
-
-      {/* ── Status card ────────────────────────────────────────────── */}
-      <div className="w-full max-w-sm rounded-xl border p-6 shadow-sm"
-           style={{
-             backgroundColor: 'var(--color-surface)',
-             borderColor: 'var(--color-border)',
-             borderRadius: 'var(--radius-card)',
-           }}>
-
-        {status === 'loading' && (
-          <div className="flex items-center gap-3">
-            {/* Spinner */}
-            <svg className="h-5 w-5 animate-spin"
-                 style={{ color: 'var(--color-primary)' }}
-                 xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                 aria-label="Loading">
-              <circle className="opacity-25" cx="12" cy="12" r="10"
-                      stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor"
-                    d="M4 12a8 8 0 018-8v8H4z" />
-            </svg>
-            <span style={{ color: 'var(--color-text-secondary)' }}>
-              Connecting to backend…
-            </span>
+    <div
+      className="min-h-screen flex flex-col"
+      style={{ backgroundColor: 'var(--color-background)' }}
+    >
+      {/* ── Top Navigation Bar ── */}
+      <nav
+        className="w-full border-b px-6 py-3.5 flex items-center justify-between"
+        style={{
+          backgroundColor: 'var(--color-surface)',
+          borderColor: 'var(--color-border)',
+        }}
+      >
+        <div className="flex items-center gap-2.5">
+          <div
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-white font-bold text-sm shadow-xs"
+            style={{ backgroundColor: 'var(--color-primary)' }}
+          >
+            DQ
           </div>
-        )}
-
-        {status === 'ok' && (
-          <div className="flex items-center gap-3">
-            <span className="text-xl" role="img" aria-label="OK">✅</span>
-            <div>
-              <p className="font-semibold" style={{ color: 'var(--color-success)' }}>
-                Backend is healthy
-              </p>
-              <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>
-                GET /api/health → 200 OK
-              </p>
-            </div>
+          <div>
+            <h1
+              className="text-base font-bold tracking-tight leading-none"
+              style={{ color: 'var(--color-text-primary)' }}
+            >
+              DataQuery AI
+            </h1>
+            <p
+              className="text-xs leading-none mt-0.5"
+              style={{ color: 'var(--color-text-secondary)' }}
+            >
+              Full-Stack AI Data Analyst
+            </p>
           </div>
-        )}
+        </div>
 
-        {status === 'error' && (
-          <div className="flex items-start gap-3">
-            <span className="text-xl" role="img" aria-label="Error">❌</span>
-            <div>
-              <p className="font-semibold" style={{ color: 'var(--color-error)' }}>
-                Backend unreachable
-              </p>
-              <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>
-                {errorMsg}
-              </p>
-              <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>
-                Make sure uvicorn is running on the configured{' '}
-                <code className="font-mono">VITE_API_URL</code>.
-              </p>
-            </div>
+        {/* ── Corner Health Indicator ── */}
+        <div
+          className="flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-medium border"
+          style={{
+            borderColor: 'var(--color-border)',
+            backgroundColor: 'var(--color-background)',
+          }}
+        >
+          {healthStatus === 'loading' && (
+            <>
+              <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+              <span style={{ color: 'var(--color-text-secondary)' }}>Connecting…</span>
+            </>
+          )}
+          {healthStatus === 'ok' && (
+            <>
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              <span style={{ color: 'var(--color-text-primary)' }}>Backend Online</span>
+            </>
+          )}
+          {healthStatus === 'error' && (
+            <>
+              <span className="h-2 w-2 rounded-full bg-rose-500" />
+              <span style={{ color: 'var(--color-error)' }}>Backend Offline</span>
+            </>
+          )}
+        </div>
+      </nav>
+
+      {/* ── Main Dashboard Content ── */}
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8 flex flex-col gap-6">
+        {/* Upload Section */}
+        <section aria-labelledby="upload-heading">
+          <div className="flex items-center justify-between mb-2">
+            <h2
+              id="upload-heading"
+              className="text-lg font-bold"
+              style={{ color: 'var(--color-text-primary)' }}
+            >
+              1. Upload Dataset
+            </h2>
+            {currentDataset && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="text-xs font-medium text-rose-600 hover:text-rose-700 hover:underline cursor-pointer disabled:opacity-50"
+              >
+                {isDeleting ? 'Deleting…' : 'Delete Dataset & Reset'}
+              </button>
+            )}
           </div>
-        )}
-      </div>
+          <FileUploader
+            onUploadSuccess={handleUploadSuccess}
+            currentDataset={currentDataset}
+            onReset={handleReset}
+          />
+        </section>
+
+        {/* Dataset Summary Section */}
+        <section aria-labelledby="summary-heading">
+          <h2
+            id="summary-heading"
+            className="text-lg font-bold mb-2"
+            style={{ color: 'var(--color-text-primary)' }}
+          >
+            2. Dataset Summary & Schema
+          </h2>
+          <DatasetSummary datasetId={currentDataset?.dataset_id} />
+        </section>
+
+        {/* Data Preview Section */}
+        <section aria-labelledby="preview-heading">
+          <h2
+            id="preview-heading"
+            className="text-lg font-bold mb-2"
+            style={{ color: 'var(--color-text-primary)' }}
+          >
+            3. Data Preview
+          </h2>
+          <DataPreviewTable datasetId={currentDataset?.dataset_id} />
+        </section>
+      </main>
+
+      {/* ── Footer ── */}
+      <footer
+        className="w-full border-t py-4 text-center text-xs"
+        style={{
+          borderColor: 'var(--color-border)',
+          color: 'var(--color-text-secondary)',
+        }}
+      >
+        DataQuery AI • Phase 1 CSV Analysis Workspace
+      </footer>
     </div>
   )
 }
