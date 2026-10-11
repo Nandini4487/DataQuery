@@ -128,7 +128,9 @@ frontend/src/
 - Result table and chart render from a hardcoded plan result
 
 #### Status
-Not started
+Done
+
+**Summary:** All Phase 1 tasks completed. Backend schemas (dataset, query, answer), file service with strict 10 MB CSV validation and encoding checks, disk-backed profiling service, query validator with comprehensive allowlists, query executor with safe Pandas operations (no eval/exec), chart service inferring scalar/bar/line specs, and datasets/ask API endpoints implemented. Frontend components built: FileUploader, DatasetSummary, DataPreviewTable, QuestionInput, ResultTable, ChartRenderer with Recharts, and composed into Dashboard. All 46 pytest tests pass, ruff is clean, npm run build succeeds with zero errors. Deviations: DuckDB deferred as Pandas handles all in-memory operations cleanly without raw SQL; Recharts was approved and used for charting. Nothing carried over.
 
 ---
 
