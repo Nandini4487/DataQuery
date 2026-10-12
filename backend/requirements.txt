@@ -9,3 +9,5 @@ pytest-asyncio
 ruff
 pandas
 google-genai
+pymupdf
+chromadb

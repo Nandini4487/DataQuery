@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+from pathlib import Path
+
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
 
 
 class Settings(BaseSettings):
@@ -20,8 +25,23 @@ class Settings(BaseSettings):
     max_upload_size_mb: int = 10
     upload_dir: str = "./uploads"
 
+    # Document RAG limits — Phase 3
+    max_document_size_mb: int = 10
+    max_pdf_pages: int = 100
+    max_chunks_per_document: int = 500
+    max_extracted_chars: int = 500000
+
     # ChromaDB — Phase 3
     chroma_persist_directory: str = "./data/chroma"
+
+    @field_validator("chroma_persist_directory", mode="after")
+    @classmethod
+    def resolve_chroma_path(cls, v: str) -> str:
+        """Resolve a relative chroma_persist_directory against backend/, not CWD."""
+        p = Path(v)
+        if not p.is_absolute():
+            return str((BACKEND_DIR / p).resolve())
+        return str(p.resolve())
 
     # Gemini — Phase 2
     gemini_api_key: str = ""
