@@ -1,30 +1,42 @@
 import { useState } from 'react'
 import { askQuestion } from '../../services/api'
 
-export default function QuestionInput({ datasetId, onAnswerReceived, disabled }) {
+export default function QuestionInput({ datasetId, onAsk, onAnswerReceived, disabled, isAsking }) {
   const [question, setQuestion] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [internalLoading, setInternalLoading] = useState(false)
   const [error, setError] = useState('')
   const [lastSubmitted, setLastSubmitted] = useState('')
+
+  const loading = isAsking || internalLoading
 
   const handleSubmit = async (e) => {
     if (e) e.preventDefault()
     const trimmed = question.trim()
-    if (!trimmed || !datasetId || loading) return
+    if (!trimmed || !datasetId || loading || disabled) return
 
-    setLoading(true)
     setError('')
 
+    // If parent handles the asking flow (e.g. Dashboard managing chat messages)
+    if (onAsk) {
+      setLastSubmitted(trimmed)
+      setQuestion('')
+      onAsk(trimmed)
+      return
+    }
+
+    // Fallback: internal handling
+    setInternalLoading(true)
     const res = await askQuestion(datasetId, trimmed)
-    setLoading(false)
+    setInternalLoading(false)
 
     if (res.ok) {
       setLastSubmitted(trimmed)
+      setQuestion('')
       if (onAnswerReceived) {
         onAnswerReceived(res.data, trimmed)
       }
     } else {
-      setError(res.data?.message || res.data?.error || 'Failed to analyze question.')
+      setError(res.message || res.data?.message || res.data?.error || 'Failed to analyze question.')
     }
   }
 
@@ -42,6 +54,7 @@ export default function QuestionInput({ datasetId, onAnswerReceived, disabled })
   ]
 
   const handleSuggestionClick = (sq) => {
+    if (disabled || loading) return
     setQuestion(sq)
   }
 
@@ -60,7 +73,7 @@ export default function QuestionInput({ datasetId, onAnswerReceived, disabled })
             Ask a Question
           </h4>
           <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-            Ask in natural language. In Phase 1, the deterministic engine calculates results.
+            Ask in natural language. Powered by deterministic calculations and grounded explanations.
           </p>
         </div>
         {lastSubmitted && (
@@ -68,7 +81,7 @@ export default function QuestionInput({ datasetId, onAnswerReceived, disabled })
             className="text-xs px-2.5 py-1 rounded-full font-medium"
             style={{ backgroundColor: '#DCFCE7', color: 'var(--color-success)' }}
           >
-            Last answered
+            Last asked: &ldquo;{lastSubmitted.length > 30 ? lastSubmitted.slice(0, 30) + '…' : lastSubmitted}&rdquo;
           </span>
         )}
       </div>
@@ -84,6 +97,8 @@ export default function QuestionInput({ datasetId, onAnswerReceived, disabled })
             placeholder={
               disabled
                 ? 'Upload a CSV dataset above to start asking questions…'
+                : loading
+                ? 'Analyzing query with data engine… please wait'
                 : 'e.g. What is the total revenue? Press Enter to ask…'
             }
             className="w-full resize-none rounded-lg border p-3 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-400"
@@ -101,7 +116,7 @@ export default function QuestionInput({ datasetId, onAnswerReceived, disabled })
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                 </svg>
-                Executing query plan…
+                Executing query plan with data engine…
               </div>
             </div>
           )}
@@ -115,8 +130,9 @@ export default function QuestionInput({ datasetId, onAnswerReceived, disabled })
               <button
                 key={sq}
                 type="button"
+                disabled={loading}
                 onClick={() => handleSuggestionClick(sq)}
-                className="text-xs px-2.5 py-1 rounded-md border bg-slate-50 hover:bg-slate-100 transition-colors text-slate-600 cursor-pointer"
+                className="text-xs px-2.5 py-1 rounded-md border bg-slate-50 hover:bg-slate-100 disabled:opacity-50 transition-colors text-slate-600 cursor-pointer disabled:cursor-not-allowed"
                 style={{ borderColor: 'var(--color-border)' }}
               >
                 {sq}

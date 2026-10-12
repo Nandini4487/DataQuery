@@ -73,10 +73,43 @@ export async function deleteDataset(datasetId) {
   })
 }
 
-/** POST /api/datasets/{id}/ask - ask a question against a dataset */
+/**
+ * POST /api/datasets/{id}/ask - ask a question against a dataset.
+ * Handles specific error codes (unsupported_question, invalid_plan, provider_unavailable)
+ * and returns the error message for display.
+ */
 export async function askQuestion(datasetId, question) {
-  return request(`/api/datasets/${datasetId}/ask`, {
+  const res = await request(`/api/datasets/${datasetId}/ask`, {
     method: 'POST',
     body: JSON.stringify({ question }),
   })
+
+  if (!res.ok) {
+    const errorType = res.data?.error || 'unknown_error'
+    let message = res.data?.message
+
+    if (!message) {
+      if (Array.isArray(res.data?.detail)) {
+        message = res.data.detail.map((d) => d.msg || d).join(', ')
+      } else if (typeof res.data?.detail === 'string') {
+        message = res.data.detail
+      } else {
+        message = 'An error occurred while analyzing your question.'
+      }
+    }
+
+    return {
+      ok: false,
+      status: res.status,
+      error: errorType,
+      message,
+      data: res.data,
+    }
+  }
+
+  return {
+    ok: true,
+    status: res.status,
+    data: res.data,
+  }
 }

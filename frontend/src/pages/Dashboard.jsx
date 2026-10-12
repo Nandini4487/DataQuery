@@ -1,20 +1,19 @@
 import { useState, useEffect } from 'react'
-import { healthCheck, deleteDataset } from '../services/api'
+import { healthCheck, deleteDataset, askQuestion } from '../services/api'
 import FileUploader from '../components/upload/FileUploader'
 import DatasetSummary from '../components/dataset/DatasetSummary'
 import DataPreviewTable from '../components/dataset/DataPreviewTable'
 import QuestionInput from '../components/chat/QuestionInput'
-import ResultTable from '../components/results/ResultTable'
-import ChartRenderer from '../components/results/ChartRenderer'
+import ChatMessage from '../components/chat/ChatMessage'
 
 export default function Dashboard() {
   const [healthStatus, setHealthStatus] = useState('loading') // 'loading' | 'ok' | 'error'
   const [currentDataset, setCurrentDataset] = useState(null)
   const [isDeleting, setIsDeleting] = useState(false)
 
-  // Query Result State
-  const [queryResult, setQueryResult] = useState(null) // AnswerResponse object
-  const [activeQuestion, setActiveQuestion] = useState('')
+  // In-memory chat messages state for current dataset (no persistence)
+  const [messages, setMessages] = useState([])
+  const [isAsking, setIsAsking] = useState(false)
 
   useEffect(() => {
     healthCheck().then(({ ok, data }) => {
@@ -28,14 +27,14 @@ export default function Dashboard() {
 
   const handleUploadSuccess = (meta) => {
     setCurrentDataset(meta)
-    setQueryResult(null)
-    setActiveQuestion('')
+    setMessages([])
+    setIsAsking(false)
   }
 
   const handleReset = () => {
     setCurrentDataset(null)
-    setQueryResult(null)
-    setActiveQuestion('')
+    setMessages([])
+    setIsAsking(false)
   }
 
   const handleDelete = async () => {
@@ -46,9 +45,49 @@ export default function Dashboard() {
     handleReset()
   }
 
-  const handleAnswerReceived = (answerResponse, questionText) => {
-    setQueryResult(answerResponse)
-    setActiveQuestion(questionText)
+  const handleAskQuestion = async (questionText) => {
+    if (!currentDataset?.dataset_id || isAsking) return
+
+    const messageId = `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+
+    const pendingMessage = {
+      id: messageId,
+      question: questionText,
+      loading: true,
+      answer: null,
+      error: null,
+      timestamp: nowTime,
+    }
+
+    setMessages((prev) => [...prev, pendingMessage])
+    setIsAsking(true)
+
+    const res = await askQuestion(currentDataset.dataset_id, questionText)
+    setIsAsking(false)
+
+    setMessages((prev) =>
+      prev.map((msg) => {
+        if (msg.id !== messageId) return msg
+        if (res.ok) {
+          return {
+            ...msg,
+            loading: false,
+            answer: res.data,
+            error: null,
+          }
+        }
+        return {
+          ...msg,
+          loading: false,
+          answer: null,
+          error: {
+            error: res.error,
+            message: res.message,
+          },
+        }
+      })
+    )
   }
 
   return (
@@ -81,7 +120,7 @@ export default function Dashboard() {
               className="text-xs leading-none mt-1"
               style={{ color: 'var(--color-text-secondary)' }}
             >
-              Deterministic Analytics & Query Engine • Phase 1
+              Deterministic Analytics & Query Engine
             </p>
           </div>
         </div>
@@ -137,7 +176,7 @@ export default function Dashboard() {
               <button
                 type="button"
                 onClick={handleDelete}
-                disabled={isDeleting}
+                disabled={isDeleting || isAsking}
                 className="text-xs font-medium text-rose-600 hover:text-rose-700 hover:underline cursor-pointer disabled:opacity-50"
               >
                 {isDeleting ? 'Deleting…' : 'Delete Dataset & Reset'}
@@ -205,15 +244,16 @@ export default function Dashboard() {
           <QuestionInput
             datasetId={currentDataset?.dataset_id}
             disabled={!currentDataset}
-            onAnswerReceived={handleAnswerReceived}
+            isAsking={isAsking}
+            onAsk={handleAskQuestion}
           />
         </section>
 
-        {/* 5. Results Section (Answer, Table & Chart) */}
-        {queryResult && (
-          <section aria-labelledby="results-heading" className="flex flex-col gap-5">
+        {/* 5. Chat History & Computed Answers */}
+        <section aria-labelledby="chat-heading" className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
             <h2
-              id="results-heading"
+              id="chat-heading"
               className="text-base font-bold flex items-center gap-2"
               style={{ color: 'var(--color-text-primary)' }}
             >
@@ -223,41 +263,41 @@ export default function Dashboard() {
               >
                 5
               </span>
-              Computed Results
+              Conversation & Answers
             </h2>
+            {messages.length > 0 && (
+              <span className="text-xs text-slate-400">
+                {messages.length} {messages.length === 1 ? 'query' : 'queries'} answered
+              </span>
+            )}
+          </div>
 
-            {/* Answer banner */}
+          {messages.length === 0 ? (
             <div
-              className="p-4 rounded-xl border flex items-start gap-3"
+              className="rounded-xl border border-dashed p-8 text-center"
               style={{
                 backgroundColor: 'var(--color-surface)',
                 borderColor: 'var(--color-border)',
                 borderRadius: 'var(--radius-card)',
               }}
             >
-              <div
-                className="flex h-8 w-8 items-center justify-center rounded-lg shrink-0 mt-0.5"
-                style={{ backgroundColor: '#EFF6FF', color: 'var(--color-primary)' }}
-              >
-                💡
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  Query: &ldquo;{activeQuestion}&rdquo;
-                </p>
-                <p className="text-sm font-medium mt-1" style={{ color: 'var(--color-text-primary)' }}>
-                  {queryResult.answer_text}
-                </p>
-              </div>
+              <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                No questions asked yet.
+              </p>
+              <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>
+                {currentDataset
+                  ? 'Type a question above or click a suggestion to start analyzing your data.'
+                  : 'Upload a CSV dataset above to start querying.'}
+              </p>
             </div>
-
-            {/* Two-column layout for Table and Chart */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-              <ResultTable table={queryResult.table} />
-              <ChartRenderer chartSpec={queryResult.chart_spec} />
+          ) : (
+            <div className="flex flex-col gap-6">
+              {messages.map((msg) => (
+                <ChatMessage key={msg.id} message={msg} />
+              ))}
             </div>
-          </section>
-        )}
+          )}
+        </section>
       </main>
 
       {/* ── Footer ── */}
@@ -268,7 +308,7 @@ export default function Dashboard() {
           color: 'var(--color-text-secondary)',
         }}
       >
-        DataQuery AI • Phase 1 Deterministic Analytics Workspace
+        DataQuery AI • Deterministic Analytics Workspace
       </footer>
     </div>
   )
