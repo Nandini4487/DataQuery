@@ -8,6 +8,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from fastapi.responses import JSONResponse
 
 from app.schemas.dataset import DatasetMeta, PreviewResponse, ProfileResponse
+from app.services import retrieval_service
 from app.services.file_service import (
     FileValidationError,
     delete_dataset,
@@ -136,6 +137,7 @@ async def delete_dataset_endpoint(id: str) -> Any:
 
     try:
         delete_dataset(clean_id)
+        retrieval_service.delete_dataset(clean_id)
         return {
             "status": "deleted",
             "dataset_id": clean_id,
