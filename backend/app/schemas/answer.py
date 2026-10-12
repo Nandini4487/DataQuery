@@ -12,3 +12,5 @@ class AnswerResponse(BaseModel):
     table: dict[str, Any] | list[dict[str, Any]] | None = None
     chart_spec: dict[str, Any] | None = None
     citations: list[Any] = Field(default_factory=list)
+    computed_by_engine: bool = True
+    explanation_is_fallback: bool = False

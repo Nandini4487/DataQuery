@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 
@@ -169,6 +170,7 @@ def test_ask_valid_dataset_returns_table_and_chart(
     client: TestClient,
     sample_csv_bytes: bytes,
     tmp_upload_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """POST /api/datasets/{id}/ask returns AnswerResponse with table and chart_spec."""
     upload_res = client.post(
@@ -177,6 +179,23 @@ def test_ask_valid_dataset_returns_table_and_chart(
     )
     dataset_id = upload_res.json()["dataset_id"]
 
+    monkeypatch.setattr(
+        "app.services.query_planner.generate_json",
+        lambda *args, **kwargs: {
+            "supported": True,
+            "reason": "",
+            "plan": {
+                "operation": "aggregate",
+                "columns": ["revenue"],
+                "agg": "sum",
+            },
+        },
+    )
+    monkeypatch.setattr(
+        "app.services.answer_service.generate_text",
+        lambda *args, **kwargs: "Total revenue is 240000.",
+    )
+
     res = client.post(
         f"/api/datasets/{dataset_id}/ask",
         json={"question": "What is the total revenue?"},
@@ -184,7 +203,7 @@ def test_ask_valid_dataset_returns_table_and_chart(
     assert res.status_code == 200
     data = res.json()
 
-    assert data["answer_text"] == "Stub response (LLM not connected yet)"
+    assert data["answer_text"] == "Total revenue is 240000."
     assert "table" in data
     assert data["table"] is not None
     assert "columns" in data["table"]
@@ -196,6 +215,7 @@ def test_ask_valid_dataset_returns_table_and_chart(
     assert "type" in data["chart_spec"]
     assert "data" in data["chart_spec"]
     assert data["citations"] == []
+    assert data["computed_by_engine"] is True
 
 
 def test_ask_unknown_dataset_returns_standard_error(client: TestClient) -> None:
