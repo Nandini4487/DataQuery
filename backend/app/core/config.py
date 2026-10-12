@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
@@ -31,8 +31,26 @@ class Settings(BaseSettings):
     max_chunks_per_document: int = 500
     max_extracted_chars: int = 500000
 
+    # RAG Chunking and Retrieval — Phase 3
+    chunk_size_words: int = 450
+    chunk_overlap_words: int = 80
+    rag_top_k: int = 5
+
     # ChromaDB — Phase 3
     chroma_persist_directory: str = "./data/chroma"
+
+    @model_validator(mode="after")
+    def validate_chunking_parameters(self) -> Settings:
+        if self.chunk_size_words <= 0:
+            raise ValueError("chunk_size_words must be greater than 0.")
+        if self.chunk_overlap_words < 0:
+            raise ValueError("chunk_overlap_words must be non-negative.")
+        if self.chunk_overlap_words >= self.chunk_size_words:
+            raise ValueError(
+                f"chunk_overlap_words ({self.chunk_overlap_words}) must be strictly less than "
+                f"chunk_size_words ({self.chunk_size_words})."
+            )
+        return self
 
     @field_validator("chroma_persist_directory", mode="after")
     @classmethod

@@ -2,11 +2,20 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import chromadb
 import pytest
 from fastapi.testclient import TestClient
 
 from app.core.config import settings
 from app.main import app
+from app.services.embedding_service import (
+    reset_embedding_function,
+    set_embedding_function,
+)
+from app.services.retrieval_service import (
+    reset_chroma_client,
+    set_chroma_client,
+)
 
 
 @pytest.fixture()
@@ -90,3 +99,57 @@ def fake_llm_client(monkeypatch: pytest.MonkeyPatch) -> FakeGenAIClient:
     fake = FakeGenAIClient()
     monkeypatch.setattr("app.services.llm_client.get_client", lambda: fake)
     return fake
+
+
+class DeterministicFakeEmbeddingFunction:
+    """Deterministic offline fake embedding function producing 8-dimensional unit vectors."""
+
+    def __init__(self) -> None:
+        self.call_count = 0
+
+    def __call__(self, texts: list[str]) -> list[list[float]]:
+        self.call_count += 1
+        results: list[list[float]] = []
+        for text in texts:
+            vec = [0.0] * 8
+            for i, byte in enumerate(text.encode("utf-8")):
+                vec[i % 8] += float(byte)
+            norm = sum(v * v for v in vec) ** 0.5
+            if norm > 0:
+                vec = [round(v / norm, 6) for v in vec]
+            results.append(vec)
+        return results
+
+
+@pytest.fixture(autouse=True)
+def guard_chroma_persist_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure no test ever writes into the real data/chroma directory."""
+    temp_dir = tmp_path / "guard_test_chroma"
+    monkeypatch.setattr(settings, "chroma_persist_directory", str(temp_dir))
+    reset_chroma_client()
+    yield
+    reset_chroma_client()
+
+
+@pytest.fixture()
+def fake_embedding_fn() -> DeterministicFakeEmbeddingFunction:
+    """Fixture providing an offline deterministic fake embedding function."""
+    fake = DeterministicFakeEmbeddingFunction()
+    set_embedding_function(fake)
+    yield fake
+    reset_embedding_function()
+
+
+@pytest.fixture()
+def temp_chroma_client(
+    tmp_path: Path,
+    fake_embedding_fn: DeterministicFakeEmbeddingFunction,
+) -> chromadb.ClientAPI:
+    """Fixture providing an isolated Chroma PersistentClient backed by a temp directory."""
+    chroma_dir = tmp_path / "isolated_chroma"
+    chroma_dir.mkdir(parents=True, exist_ok=True)
+    client = chromadb.PersistentClient(path=str(chroma_dir))
+    set_chroma_client(client)
+    yield client
+    reset_chroma_client()
+
