@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
-import { healthCheck, deleteDataset, askQuestion } from '../services/api'
+import { healthCheck, deleteDataset, askQuestion, listDocuments } from '../services/api'
 import FileUploader from '../components/upload/FileUploader'
+import DocumentUploader from '../components/upload/DocumentUploader'
+import DocumentList from '../components/dataset/DocumentList'
 import DatasetSummary from '../components/dataset/DatasetSummary'
 import DataPreviewTable from '../components/dataset/DataPreviewTable'
 import QuestionInput from '../components/chat/QuestionInput'
@@ -10,6 +12,11 @@ export default function Dashboard() {
   const [healthStatus, setHealthStatus] = useState('loading') // 'loading' | 'ok' | 'error'
   const [currentDataset, setCurrentDataset] = useState(null)
   const [isDeleting, setIsDeleting] = useState(false)
+
+  // Reference documents state for current dataset
+  const [documents, setDocuments] = useState([])
+  const [isDocsLoading, setIsDocsLoading] = useState(false)
+  const [docsError, setDocsError] = useState('')
 
   // In-memory chat messages state for current dataset (no persistence)
   const [messages, setMessages] = useState([])
@@ -25,16 +32,39 @@ export default function Dashboard() {
     })
   }, [])
 
+  const fetchDocuments = async (datasetId) => {
+    if (!datasetId) {
+      setDocuments([])
+      return
+    }
+    setIsDocsLoading(true)
+    setDocsError('')
+    const res = await listDocuments(datasetId)
+    setIsDocsLoading(false)
+    if (res.ok) {
+      setDocuments(Array.isArray(res.data) ? res.data : [])
+    } else {
+      setDocsError(res.message || 'Failed to load reference documents.')
+    }
+  }
+
   const handleUploadSuccess = (meta) => {
     setCurrentDataset(meta)
     setMessages([])
     setIsAsking(false)
+    setDocuments([])
+    setDocsError('')
+    if (meta?.dataset_id) {
+      fetchDocuments(meta.dataset_id)
+    }
   }
 
   const handleReset = () => {
     setCurrentDataset(null)
     setMessages([])
     setIsAsking(false)
+    setDocuments([])
+    setDocsError('')
   }
 
   const handleDelete = async () => {
@@ -226,7 +256,47 @@ export default function Dashboard() {
           <DataPreviewTable datasetId={currentDataset?.dataset_id} />
         </section>
 
-        {/* 4. Natural Language Question Input */}
+        {/* 4. Reference Documents (RAG) Section - Shown only after dataset exists */}
+        {currentDataset && (
+          <section aria-labelledby="documents-heading" className="flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <h2
+                id="documents-heading"
+                className="text-base font-bold flex items-center gap-2"
+                style={{ color: 'var(--color-text-primary)' }}
+              >
+                <span
+                  className="flex h-5 w-5 items-center justify-center rounded-full text-xs text-white"
+                  style={{ backgroundColor: 'var(--color-primary)' }}
+                >
+                  4
+                </span>
+                Reference Documents (RAG)
+              </h2>
+              {documents.length > 0 && (
+                <span className="text-xs text-slate-500 font-medium">
+                  {documents.length} document{documents.length === 1 ? '' : 's'} indexed
+                </span>
+              )}
+            </div>
+
+            <DocumentUploader
+              datasetId={currentDataset.dataset_id}
+              onUploadSuccess={() => fetchDocuments(currentDataset.dataset_id)}
+              disabled={isAsking || isDeleting}
+            />
+
+            <DocumentList
+              datasetId={currentDataset.dataset_id}
+              documents={documents}
+              loading={isDocsLoading}
+              error={docsError}
+              onRefresh={() => fetchDocuments(currentDataset.dataset_id)}
+            />
+          </section>
+        )}
+
+        {/* 5. Natural Language Question Input */}
         <section aria-labelledby="ask-heading">
           <h2
             id="ask-heading"
@@ -237,7 +307,7 @@ export default function Dashboard() {
               className="flex h-5 w-5 items-center justify-center rounded-full text-xs text-white"
               style={{ backgroundColor: 'var(--color-primary)' }}
             >
-              4
+              {currentDataset ? 5 : 4}
             </span>
             Query & Analysis
           </h2>
@@ -249,7 +319,7 @@ export default function Dashboard() {
           />
         </section>
 
-        {/* 5. Chat History & Computed Answers */}
+        {/* 6. Chat History & Computed Answers */}
         <section aria-labelledby="chat-heading" className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <h2
@@ -261,7 +331,7 @@ export default function Dashboard() {
                 className="flex h-5 w-5 items-center justify-center rounded-full text-xs text-white"
                 style={{ backgroundColor: 'var(--color-primary)' }}
               >
-                5
+                {currentDataset ? 6 : 5}
               </span>
               Conversation & Answers
             </h2>
@@ -286,7 +356,7 @@ export default function Dashboard() {
               </p>
               <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>
                 {currentDataset
-                  ? 'Type a question above or click a suggestion to start analyzing your data.'
+                  ? 'Type a question above or click a suggestion to start analyzing your data and reference documents.'
                   : 'Upload a CSV dataset above to start querying.'}
               </p>
             </div>

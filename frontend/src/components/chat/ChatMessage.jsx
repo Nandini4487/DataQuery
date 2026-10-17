@@ -1,5 +1,6 @@
 import ResultTable from '../results/ResultTable'
 import ChartRenderer from '../results/ChartRenderer'
+import SourceCitation from '../sources/SourceCitation'
 
 /**
  * ChatMessage Component
@@ -7,9 +8,12 @@ import ChartRenderer from '../results/ChartRenderer'
  * Displays a conversation turn:
  * - A user question bubble
  * - An answer card with loading, error, empty, and success states
- * - "Computed by data engine" badge
+ * - Route badge: "Data engine" (structured), "Documents" (document), or "Data + documents" (combined)
+ * - "Computed by data engine" badge (only when computed_by_engine is true)
  * - Fallback note when AI explanation was unavailable
- * - ResultTable and ChartRenderer components for numerical results
+ * - ResultTable and ChartRenderer components ONLY when table/chart actually exist
+ * - Collapsible "Sources & Citations" panel when citations exist
+ * - Friendly inline error messages for documents_required, unsupported_question, embedding_unavailable, provider_unavailable, invalid_plan
  */
 export default function ChatMessage({ message, question: qProp, answer: aProp, error: errProp, loading: loadProp }) {
   const question = message?.question ?? qProp ?? ''
@@ -19,7 +23,92 @@ export default function ChatMessage({ message, question: qProp, answer: aProp, e
   const timestamp = message?.timestamp ?? null
 
   const isFallback = Boolean(answer?.explanation_is_fallback)
-  const isComputedByEngine = answer?.computed_by_engine ?? true
+  const isComputedByEngine = Boolean(answer?.computed_by_engine)
+
+  const route = answer?.route
+  const routeLabel =
+    route === 'structured'
+      ? 'Data engine'
+      : route === 'document'
+      ? 'Documents'
+      : route === 'combined'
+      ? 'Data + documents'
+      : null
+
+  const hasTable = Boolean(answer?.table && Array.isArray(answer.table.rows) && answer.table.rows.length > 0)
+  const hasChart = Boolean(answer?.chart_spec && answer.chart_spec.type && answer.chart_spec.type !== 'none')
+  const hasCitations = Boolean(answer?.citations && Array.isArray(answer.citations) && answer.citations.length > 0)
+
+  // Configure friendly error display
+  const getErrorInfo = (err) => {
+    const code = err?.error || 'error'
+    const rawMsg = typeof err === 'string' ? err : err?.message || ''
+
+    switch (code) {
+      case 'documents_required':
+        return {
+          title: 'Reference Document Required',
+          message: rawMsg || 'Please upload a reference document (.pdf or .txt) above before asking questions about documents or policies.',
+          tip: 'Use the Reference Documents uploader above to attach your documentation.',
+          bg: '#FFFBEB',
+          border: '#FDE68A',
+          textColor: '#92400E',
+          icon: '📄',
+        }
+      case 'unsupported_question':
+        return {
+          title: 'Question Unsupported',
+          message: rawMsg || 'This question cannot be answered from the current dataset columns or documents.',
+          tip: 'Try rephrasing your question to target available columns or uploaded reference materials.',
+          bg: '#FFFBEB',
+          border: '#FDE68A',
+          textColor: '#92400E',
+          icon: 'ℹ️',
+        }
+      case 'embedding_unavailable':
+        return {
+          title: 'Embedding Service Unavailable',
+          message: rawMsg || 'The document embedding engine is temporarily unavailable. Please try again shortly.',
+          tip: 'Check that backend vector services are operational.',
+          bg: '#FEF2F2',
+          border: '#FECACA',
+          textColor: '#991B1B',
+          icon: '⏳',
+        }
+      case 'provider_unavailable':
+        return {
+          title: 'AI Service Temporarily Unavailable',
+          message: rawMsg || 'The AI service is temporarily unreachable. Please try again in a moment.',
+          tip: 'The backend will automatically retry on transient connection interruptions.',
+          bg: '#FEF2F2',
+          border: '#FECACA',
+          textColor: '#991B1B',
+          icon: '⏳',
+        }
+      case 'invalid_plan':
+        return {
+          title: 'Query Plan Notice',
+          message: rawMsg || 'Unable to formulate a safe deterministic execution plan for this question.',
+          tip: 'Try asking for specific aggregates (sums, averages, counts) or filters.',
+          bg: '#FEF2F2',
+          border: '#FECACA',
+          textColor: '#991B1B',
+          icon: '⚠️',
+        }
+      default:
+        return {
+          title: 'Query Notice',
+          message: rawMsg || 'Unable to complete this query.',
+          tip: 'Check your dataset schema and question phrasing.',
+          bg: '#FEF2F2',
+          border: '#FECACA',
+          textColor: '#991B1B',
+          icon: '⚠️',
+        }
+    }
+  }
+
+  const errInfo = error ? getErrorInfo(error) : null
 
   return (
     <div className="w-full flex flex-col gap-3 py-2">
@@ -80,10 +169,10 @@ export default function ChatMessage({ message, question: qProp, answer: aProp, e
                 </svg>
                 <div className="flex flex-col">
                   <span className="text-xs font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-                    Analyzing query with deterministic data engine…
+                    Analyzing query with DataQuery engine…
                   </span>
                   <span className="text-2xs text-slate-400">
-                    Routing, planning, and executing computations
+                    Routing, retrieving evidence, and executing computations
                   </span>
                 </div>
               </div>
@@ -95,58 +184,48 @@ export default function ChatMessage({ message, question: qProp, answer: aProp, e
             </div>
           )}
 
-          {/* ── B. Error State (Friendly Inline Message) ── */}
-          {!loading && error && (
+          {/* ── B. Friendly Inline Error State ── */}
+          {!loading && error && errInfo && (
             <div className="flex flex-col gap-2">
               <div
                 className="p-3.5 rounded-lg border text-xs flex items-start gap-3"
                 style={{
-                  backgroundColor: error.error === 'unsupported_question' ? '#FFFBEB' : '#FEF2F2',
-                  borderColor: error.error === 'unsupported_question' ? '#FDE68A' : '#FECACA',
+                  backgroundColor: errInfo.bg,
+                  borderColor: errInfo.border,
                 }}
               >
-                <span className="text-base leading-none">
-                  {error.error === 'unsupported_question' ? 'ℹ️' : error.error === 'provider_unavailable' ? '⏳' : '⚠️'}
-                </span>
+                <span className="text-base leading-none">{errInfo.icon}</span>
                 <div className="flex-1 flex flex-col gap-1">
                   <div className="flex items-center gap-2">
                     <span
                       className="font-semibold"
-                      style={{
-                        color: error.error === 'unsupported_question' ? '#92400E' : 'var(--color-error)',
-                      }}
+                      style={{ color: errInfo.textColor }}
                     >
-                      {error.error === 'unsupported_question'
-                        ? 'Question Unsupported by Schema'
-                        : error.error === 'provider_unavailable'
-                        ? 'AI Service Temporarily Unavailable'
-                        : error.error === 'invalid_plan'
-                        ? 'Plan Validation Notice'
-                        : 'Query Notice'}
+                      {errInfo.title}
                     </span>
                     <span
                       className="px-1.5 py-0.5 rounded text-2xs uppercase font-mono font-medium"
                       style={{
-                        backgroundColor: error.error === 'unsupported_question' ? '#FEF3C7' : '#FEE2E2',
-                        color: error.error === 'unsupported_question' ? '#B45309' : '#DC2626',
+                        backgroundColor: 'rgba(0,0,0,0.05)',
+                        color: errInfo.textColor,
                       }}
                     >
-                      {error.error || 'error'}
+                      {error.error || 'notice'}
                     </span>
                   </div>
                   <p
                     className="leading-relaxed"
-                    style={{
-                      color: error.error === 'unsupported_question' ? '#78350F' : '#991B1B',
-                    }}
+                    style={{ color: errInfo.textColor }}
                   >
-                    {typeof error === 'string' ? error : error.message || 'Unable to complete this query.'}
+                    {errInfo.message}
                   </p>
                 </div>
               </div>
-              <p className="text-2xs text-slate-400 px-1">
-                Tip: Try rephrasing your question to target columns present in your dataset schema.
-              </p>
+              {errInfo.tip && (
+                <p className="text-2xs text-slate-400 px-1">
+                  Tip: {errInfo.tip}
+                </p>
+              )}
             </div>
           )}
 
@@ -162,6 +241,39 @@ export default function ChatMessage({ message, question: qProp, answer: aProp, e
             <div className="flex flex-col gap-4">
               {/* Badges and Metadata Header */}
               <div className="flex flex-wrap items-center gap-2">
+                {/* Route badge: "Data engine", "Documents", or "Data + documents" */}
+                {routeLabel && (
+                  <span
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold shadow-2xs border"
+                    style={{
+                      backgroundColor:
+                        route === 'document'
+                          ? '#EFF6FF'
+                          : route === 'combined'
+                          ? '#F5F3FF'
+                          : '#F1F5F9',
+                      color:
+                        route === 'document'
+                          ? '#1D4ED8'
+                          : route === 'combined'
+                          ? '#6D28D9'
+                          : '#334155',
+                      borderColor:
+                        route === 'document'
+                          ? '#BFDBFE'
+                          : route === 'combined'
+                          ? '#DDD6FE'
+                          : '#CBD5E1',
+                    }}
+                  >
+                    <span className="text-2xs">
+                      {route === 'document' ? '📄' : route === 'combined' ? '📊+📄' : '📊'}
+                    </span>
+                    {routeLabel}
+                  </span>
+                )}
+
+                {/* Show "Computed by data engine" ONLY when computed_by_engine is true */}
                 {isComputedByEngine && (
                   <span
                     className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold shadow-2xs"
@@ -183,6 +295,7 @@ export default function ChatMessage({ message, question: qProp, answer: aProp, e
                   </span>
                 )}
 
+                {/* Fallback explanation note */}
                 {isFallback && (
                   <span
                     className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
@@ -206,26 +319,26 @@ export default function ChatMessage({ message, question: qProp, answer: aProp, e
                 )}
               </div>
 
-              {/* Plain-English Answer Text */}
+              {/* Plain-English Answer Text (rendered safely as plain text) */}
               {answer.answer_text && (
                 <div
-                  className="text-sm leading-relaxed font-normal"
+                  className="text-sm leading-relaxed font-normal whitespace-pre-wrap"
                   style={{ color: 'var(--color-text-primary)' }}
                 >
                   {answer.answer_text}
                 </div>
               )}
 
-              {/* Data Table & Visualization */}
-              {(answer.table || answer.chart_spec) && (
+              {/* Data Table & Visualization ONLY when they actually exist */}
+              {(hasTable || hasChart) && (
                 <div className="flex flex-col gap-4 pt-1">
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-                    {answer.table && (
+                    {hasTable && (
                       <div className="w-full">
                         <ResultTable table={answer.table} />
                       </div>
                     )}
-                    {answer.chart_spec && (
+                    {hasChart && (
                       <div className="w-full">
                         <ChartRenderer chartSpec={answer.chart_spec} />
                       </div>
@@ -234,13 +347,42 @@ export default function ChatMessage({ message, question: qProp, answer: aProp, e
                 </div>
               )}
 
-              {/* Empty Data Rows indicator if table is empty */}
+              {/* Empty Data Rows indicator if table exists but has 0 rows */}
               {answer.table && Array.isArray(answer.table.rows) && answer.table.rows.length === 0 && (
                 <div
                   className="p-3 rounded-lg border text-xs text-center text-slate-500"
                   style={{ borderColor: 'var(--color-border)', backgroundColor: 'var(--color-background)' }}
                 >
                   The query executed successfully but 0 rows matched the condition.
+                </div>
+              )}
+
+              {/* Sources & Citations Panel (Hidden when there are no citations) */}
+              {hasCitations && (
+                <div
+                  className="mt-2 pt-3 border-t flex flex-col gap-2.5"
+                  style={{ borderColor: 'var(--color-border)' }}
+                >
+                  <div className="flex items-center gap-1.5 font-semibold text-xs text-slate-700">
+                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                      />
+                    </svg>
+                    <span>Reference Sources & Citations ({answer.citations.length})</span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                    {answer.citations.map((cit, idx) => (
+                      <SourceCitation
+                        key={`${cit.document_id || idx}-${cit.chunk_index ?? idx}-${idx}`}
+                        citation={cit}
+                        index={idx}
+                      />
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

@@ -74,6 +74,93 @@ export async function deleteDataset(datasetId) {
 }
 
 /**
+ * POST /api/datasets/{id}/documents - upload and index a reference document (PDF or TXT)
+ */
+export async function uploadDocument(datasetId, file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  const res = await request(`/api/datasets/${datasetId}/documents`, {
+    method: 'POST',
+    body: formData,
+  })
+
+  if (!res.ok) {
+    const errorType = res.data?.error || 'upload_failed'
+    let message = res.data?.message
+    if (!message) {
+      if (Array.isArray(res.data?.detail)) {
+        message = res.data.detail.map((d) => d.msg || d).join(', ')
+      } else if (typeof res.data?.detail === 'string') {
+        message = res.data.detail
+      } else {
+        message = 'Failed to upload document.'
+      }
+    }
+    return {
+      ok: false,
+      status: res.status,
+      error: errorType,
+      message,
+      data: res.data,
+    }
+  }
+
+  return {
+    ok: true,
+    status: res.status,
+    data: res.data,
+  }
+}
+
+/**
+ * GET /api/datasets/{id}/documents - list indexed reference documents
+ */
+export async function listDocuments(datasetId) {
+  const res = await request(`/api/datasets/${datasetId}/documents`)
+  if (!res.ok) {
+    const errorType = res.data?.error || 'fetch_failed'
+    const message = res.data?.message || 'Failed to list documents.'
+    return {
+      ok: false,
+      status: res.status,
+      error: errorType,
+      message,
+      data: res.data,
+    }
+  }
+  return {
+    ok: true,
+    status: res.status,
+    data: res.data,
+  }
+}
+
+/**
+ * DELETE /api/datasets/{id}/documents/{docId} - delete reference document and its indexed vectors
+ */
+export async function deleteDocument(datasetId, docId) {
+  const res = await request(`/api/datasets/${datasetId}/documents/${docId}`, {
+    method: 'DELETE',
+  })
+  if (!res.ok) {
+    const errorType = res.data?.error || 'delete_failed'
+    const message = res.data?.message || 'Failed to delete document.'
+    return {
+      ok: false,
+      status: res.status,
+      error: errorType,
+      message,
+      data: res.data,
+    }
+  }
+  return {
+    ok: true,
+    status: res.status,
+    data: res.data,
+  }
+}
+
+/**
  * POST /api/datasets/{id}/ask - ask a question against a dataset.
  * Handles specific error codes (unsupported_question, invalid_plan, provider_unavailable)
  * and returns the error message for display.
