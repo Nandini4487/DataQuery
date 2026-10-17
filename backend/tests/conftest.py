@@ -76,6 +76,9 @@ class FakeModelsService:
         self.call_count += 1
         self.last_contents = contents
         self.last_config = config
+        system_inst = str(getattr(config, "system_instruction", "")) if config else ""
+        if "BEGIN DATASET COLUMNS AND TYPES" in contents or "query routing classifier" in system_inst:
+            return FakeGenerateContentResponse('{"route": "structured", "reason": "Requires tabular calculation"}')
         return FakeGenerateContentResponse(self.default_response)
 
 

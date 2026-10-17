@@ -40,6 +40,13 @@ class PlannerOutput(BaseModel):
     plan: AnalysisPlan | None = None
 
 
+class RouterOutput(BaseModel):
+    """Output from the query router: classified route and reason."""
+
+    route: Literal["structured", "document", "combined", "unsupported"]
+    reason: str = ""
+
+
 class PlanResult(BaseModel):
     """Result of executing an AnalysisPlan."""
 

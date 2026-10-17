@@ -9,12 +9,15 @@ from fastapi.responses import JSONResponse
 from app.schemas.answer import AnswerResponse
 from app.schemas.query import AskRequest
 from app.services.ask_service import (
+    DocumentsRequiredError,
+    EmbeddingUnavailableError,
     InvalidPlanError,
     ProviderUnavailableError,
     QuestionValidationError,
     UnsupportedQuestionError,
     process_ask,
 )
+from app.services.embedding_service import EmbeddingError
 from app.services.file_service import FileValidationError
 
 logger = logging.getLogger(__name__)
@@ -31,7 +34,7 @@ router = APIRouter(prefix="/datasets", tags=["ask"])
 async def ask_question(id: str, request: AskRequest) -> Any:
     """Ask a question against an uploaded dataset.
 
-    Flow: validate -> route -> plan -> execute -> chart -> explain -> AnswerResponse.
+    Flow: validate -> route -> plan/retrieve -> execute -> chart -> explain/answer -> AnswerResponse.
     """
     try:
         return process_ask(dataset_id=id, question=request.question)
@@ -59,6 +62,19 @@ async def ask_question(id: str, request: AskRequest) -> Any:
         return JSONResponse(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             content={"error": "invalid_plan", "message": exc.message},
+        )
+    except DocumentsRequiredError as exc:
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            content={"error": "documents_required", "message": exc.message},
+        )
+    except (EmbeddingUnavailableError, EmbeddingError):
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "error": "embedding_unavailable",
+                "message": "Embedding service is temporarily unavailable.",
+            },
         )
     except ProviderUnavailableError as exc:
         return JSONResponse(

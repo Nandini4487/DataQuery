@@ -168,6 +168,7 @@ def test_upload_invalid_file_returns_standard_error(client: TestClient) -> None:
 
 def test_ask_valid_dataset_returns_table_and_chart(
     client: TestClient,
+    fake_llm_client: object,
     sample_csv_bytes: bytes,
     tmp_upload_dir: Path,
     monkeypatch: pytest.MonkeyPatch,

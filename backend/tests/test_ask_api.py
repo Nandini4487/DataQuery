@@ -44,6 +44,9 @@ def test_ask_total_revenue_returns_240000(
         contents: str,
         config: object | None = None,
     ) -> FakeGenerateContentResponse:
+        system_inst = str(getattr(config, "system_instruction", "")) if config else ""
+        if "BEGIN DATASET COLUMNS AND TYPES" in contents or "query routing classifier" in system_inst:
+            return FakeGenerateContentResponse('{"route": "structured", "reason": "aggregate"}')
         if "BEGIN DATASET SCHEMA" in contents:
             return FakeGenerateContentResponse(json.dumps(plan_dict))
         return FakeGenerateContentResponse("The total revenue across all sales is 240000.")
@@ -87,6 +90,9 @@ def test_ask_highest_revenue_product_returns_laptop(
         contents: str,
         config: object | None = None,
     ) -> FakeGenerateContentResponse:
+        system_inst = str(getattr(config, "system_instruction", "")) if config else ""
+        if "BEGIN DATASET COLUMNS AND TYPES" in contents or "query routing classifier" in system_inst:
+            return FakeGenerateContentResponse('{"route": "structured", "reason": "group by product"}')
         if "BEGIN DATASET SCHEMA" in contents:
             return FakeGenerateContentResponse(json.dumps(plan_dict))
         return FakeGenerateContentResponse("The highest revenue product is Laptop with 150000 in sales.")
@@ -121,9 +127,17 @@ def test_ask_mocked_supported_false_returns_422_unsupported_question(
         "plan": None,
     }
 
-    fake_llm_client.models.generate_content = lambda model, contents, config=None: FakeGenerateContentResponse(
-        json.dumps(unsupported_dict)
-    )
+    def mock_generate_content(
+        model: str,
+        contents: str,
+        config: object | None = None,
+    ) -> FakeGenerateContentResponse:
+        system_inst = str(getattr(config, "system_instruction", "")) if config else ""
+        if "BEGIN DATASET COLUMNS AND TYPES" in contents or "query routing classifier" in system_inst:
+            return FakeGenerateContentResponse('{"route": "structured", "reason": "check schema"}')
+        return FakeGenerateContentResponse(json.dumps(unsupported_dict))
+
+    fake_llm_client.models.generate_content = mock_generate_content
 
     res = client.post(
         f"/api/datasets/{uploaded_dataset_id}/ask",
@@ -153,9 +167,17 @@ def test_ask_mocked_plan_with_unknown_column_returns_422_invalid_plan_and_no_exe
         },
     }
 
-    fake_llm_client.models.generate_content = lambda model, contents, config=None: FakeGenerateContentResponse(
-        json.dumps(bad_plan)
-    )
+    def mock_generate_content(
+        model: str,
+        contents: str,
+        config: object | None = None,
+    ) -> FakeGenerateContentResponse:
+        system_inst = str(getattr(config, "system_instruction", "")) if config else ""
+        if "BEGIN DATASET COLUMNS AND TYPES" in contents or "query routing classifier" in system_inst:
+            return FakeGenerateContentResponse('{"route": "structured", "reason": "check schema"}')
+        return FakeGenerateContentResponse(json.dumps(bad_plan))
+
+    fake_llm_client.models.generate_content = mock_generate_content
 
     executor_called = False
     original_execute_query = app.services.query_executor.execute_query
@@ -223,6 +245,9 @@ def test_ask_mocked_answer_service_failure_returns_200_with_fallback(
         contents: str,
         config: object | None = None,
     ) -> FakeGenerateContentResponse:
+        system_inst = str(getattr(config, "system_instruction", "")) if config else ""
+        if "BEGIN DATASET COLUMNS AND TYPES" in contents or "query routing classifier" in system_inst:
+            return FakeGenerateContentResponse('{"route": "structured", "reason": "aggregate"}')
         if "BEGIN DATASET SCHEMA" in contents:
             return FakeGenerateContentResponse(json.dumps(plan_dict))
         # Answer service explanation call fails

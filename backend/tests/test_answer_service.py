@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from app.schemas.query import AnalysisPlan
@@ -175,8 +177,16 @@ def test_system_prompt_contains_required_guardrails() -> None:
     assert "untrusted data" in prompt_lower
 
 
-def test_query_router_stub() -> None:
-    """The query router stub always returns 'structured' in Phase 2."""
-    assert classify_question("What is total revenue?", "dataset-123") == "structured"
-    assert classify_question("What does policy say about expenses?", "dataset-456") == "structured"
-    assert classify_question("Random query") == "structured"
+def test_query_router_classification(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The query router classifies questions into RouterOutput with route and reason."""
+    from app.schemas.query import RouterOutput
+
+    def mock_generate_json(system_prompt: str, user_content: str, response_schema: Any = None, **kwargs: Any) -> dict[str, Any]:
+        return {"route": "structured", "reason": "Requires column sum aggregation."}
+
+    monkeypatch.setattr("app.services.query_router.generate_json", mock_generate_json)
+
+    res = classify_question("What is total revenue?", "dataset-123", columns=["revenue"], dtypes={"revenue": "int64"})
+    assert isinstance(res, RouterOutput)
+    assert res.route == "structured"
+    assert "aggregation" in res.reason.lower()
