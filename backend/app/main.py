@@ -3,16 +3,22 @@ from __future__ import annotations
 import logging
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi.errors import RateLimitExceeded
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api import ask, datasets, documents, health
 from app.core.config import settings
 from app.core.errors import (
     generic_exception_handler,
+    http_exception_handler,
     not_found_handler,
     plan_error_handler,
     query_validation_error_handler,
+    request_validation_error_handler,
 )
+from app.core.security import limiter, rate_limit_exceeded_handler
 from app.services.query_planner import PlanError
 from app.services.query_validator import QueryValidationError
 
@@ -22,21 +28,25 @@ logging.basicConfig(
 )
 
 app = FastAPI(title="DataQuery AI", version="0.1.0")
+app.state.limiter = limiter
 
-# --- CORS (never "*") ---
+# --- CORS (restricted methods and headers) ---
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.frontend_origin],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Accept"],
 )
 
 # --- Exception handlers ---
-app.add_exception_handler(Exception, generic_exception_handler)
-app.add_exception_handler(404, not_found_handler)
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+app.add_exception_handler(RequestValidationError, request_validation_error_handler)
+app.add_exception_handler(StarletteHTTPException, http_exception_handler)
 app.add_exception_handler(QueryValidationError, query_validation_error_handler)
 app.add_exception_handler(PlanError, plan_error_handler)
+app.add_exception_handler(404, not_found_handler)
+app.add_exception_handler(Exception, generic_exception_handler)
 
 # --- Routers ---
 app.include_router(health.router, prefix="/api")

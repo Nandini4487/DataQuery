@@ -24,6 +24,14 @@ class Settings(BaseSettings):
     # Upload limits
     max_upload_size_mb: int = 10
     upload_dir: str = "./uploads"
+    max_dataset_rows: int = 100000
+    max_dataset_columns: int = 100
+
+    # Rate limiting (slowapi)
+    rate_limiting_enabled: bool = True
+    rate_limit_dataset_upload: str = "10/minute"
+    rate_limit_document_upload: str = "10/minute"
+    rate_limit_ask: str = "20/minute"
 
     # Document RAG limits — Phase 3
     max_document_size_mb: int = 10

@@ -138,8 +138,9 @@ def validate_csv_content(
     try:
         df = pd.read_csv(io.StringIO(text))
     except Exception as exc:
+        logger.warning("Failed to parse CSV: %s", type(exc).__name__)
         raise FileValidationError(
-            f"Failed to parse CSV: {exc}",
+            "Failed to parse CSV file. Please ensure it is a valid, well-formed CSV.",
             error_code="unparsable_csv",
         ) from exc
 
@@ -147,6 +148,18 @@ def validate_csv_content(
         raise FileValidationError(
             "CSV file is empty or contains no data rows.",
             error_code="empty_csv",
+        )
+
+    if len(df.columns) > settings.max_dataset_columns:
+        raise FileValidationError(
+            f"Dataset column count ({len(df.columns)}) exceeds maximum limit of {settings.max_dataset_columns} columns.",
+            error_code="too_many_columns",
+        )
+
+    if len(df) > settings.max_dataset_rows:
+        raise FileValidationError(
+            f"Dataset row count ({len(df)}) exceeds maximum limit of {settings.max_dataset_rows} rows.",
+            error_code="too_many_rows",
         )
 
     return df, text

@@ -4,9 +4,11 @@ import json
 import logging
 from typing import Any
 
-from fastapi import APIRouter, File, UploadFile, status
+from fastapi import APIRouter, File, Request, UploadFile, status
 from fastapi.responses import JSONResponse
 
+from app.core.config import settings
+from app.core.security import limiter, read_stream_limited
 from app.schemas.document import DocumentListResponse, DocumentMeta
 from app.services import retrieval_service
 from app.services.chunking_service import ChunkingError, chunk_document_pages
@@ -40,7 +42,9 @@ router = APIRouter(prefix="/datasets", tags=["documents"])
     status_code=status.HTTP_201_CREATED,
     summary="Upload and index a reference document (PDF or TXT)",
 )
+@limiter.limit(lambda: settings.rate_limit_document_upload)
 async def upload_document(
+    request: Request,
     id: str,
     file: UploadFile = File(...),  # noqa: B008
 ) -> Any:
@@ -71,13 +75,14 @@ async def upload_document(
 
     # 4. Save and extract document content and page text
     try:
-        content = await file.read()
+        max_bytes = settings.max_document_size_mb * 1024 * 1024
+        content = await read_stream_limited(file, max_bytes=max_bytes)
         meta, pages = save_document(
             dataset_id=clean_ds_id,
             filename=file.filename,
             content=content,
         )
-    except DocumentValidationError as exc:
+    except (DocumentValidationError, FileValidationError) as exc:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={"error": exc.error_code, "message": exc.message},

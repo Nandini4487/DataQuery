@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import chromadb
+from chromadb.config import Settings as ChromaSettings
 
 from app.core.config import settings
 from app.services.chunking_service import DocumentChunk
@@ -53,7 +54,8 @@ def get_chroma_client() -> chromadb.ClientAPI:
     # settings.chroma_persist_directory is already resolved relative to backend/ in config.py
     persist_dir = Path(settings.chroma_persist_directory)
     persist_dir.mkdir(parents=True, exist_ok=True)
-    _chroma_client = chromadb.PersistentClient(path=str(persist_dir))
+    chroma_settings = ChromaSettings(anonymized_telemetry=False)
+    _chroma_client = chromadb.PersistentClient(path=str(persist_dir), settings=chroma_settings)
     return _chroma_client
 
 

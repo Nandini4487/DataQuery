@@ -156,3 +156,9 @@ def temp_chroma_client(
     yield client
     reset_chroma_client()
 
+
+@pytest.fixture(autouse=True)
+def disable_rate_limiting_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Disable rate limiting by default so normal test suites are unaffected."""
+    monkeypatch.setattr(settings, "rate_limiting_enabled", False)
+

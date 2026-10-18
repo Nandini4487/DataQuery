@@ -146,8 +146,9 @@ def save_document(
         try:
             doc = pymupdf.open(stream=content, filetype="pdf")
         except Exception as exc:
+            logger.warning("Failed to open PDF file: %s", type(exc).__name__)
             raise DocumentValidationError(
-                f"Failed to open PDF file: {exc}",
+                "Failed to open or parse PDF file. The file may be corrupt or invalid.",
                 error_code="corrupt_pdf",
             ) from exc
 

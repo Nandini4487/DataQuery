@@ -4,9 +4,11 @@ import logging
 from typing import Any
 
 import pandas as pd
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, Request, UploadFile, status
 from fastapi.responses import JSONResponse
 
+from app.core.config import settings
+from app.core.security import limiter, read_stream_limited
 from app.schemas.dataset import DatasetMeta, PreviewResponse, ProfileResponse
 from app.services import retrieval_service
 from app.services.file_service import (
@@ -36,7 +38,11 @@ router = APIRouter(prefix="/datasets", tags=["datasets"])
     status_code=status.HTTP_201_CREATED,
     include_in_schema=False,
 )
-async def upload_dataset(file: UploadFile = File(...)) -> Any:  # noqa: B008
+@limiter.limit(lambda: settings.rate_limit_dataset_upload)
+async def upload_dataset(
+    request: Request,
+    file: UploadFile = File(...),  # noqa: B008
+) -> Any:
     """Upload and validate a CSV dataset. Persists data and metadata to disk."""
     if not file.filename:
         return JSONResponse(
@@ -45,7 +51,8 @@ async def upload_dataset(file: UploadFile = File(...)) -> Any:  # noqa: B008
         )
 
     try:
-        content = await file.read()
+        max_bytes = settings.max_upload_size_mb * 1024 * 1024
+        content = await read_stream_limited(file, max_bytes=max_bytes)
         dataset_id = save_csv_upload(content=content, filename=file.filename)
         meta = get_dataset_meta(dataset_id)
         return meta
@@ -56,9 +63,9 @@ async def upload_dataset(file: UploadFile = File(...)) -> Any:  # noqa: B008
         )
     except Exception:
         logger.exception("Unexpected error while saving upload.")
-        raise HTTPException(
+        return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to process upload.",
+            content={"error": "internal_error", "message": "Failed to process upload."},
         )
 
 

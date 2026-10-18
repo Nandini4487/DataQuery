@@ -3,9 +3,11 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Request, status
 from fastapi.responses import JSONResponse
 
+from app.core.config import settings
+from app.core.security import limiter
 from app.schemas.answer import AnswerResponse
 from app.schemas.query import AskRequest
 from app.services.ask_service import (
@@ -31,13 +33,14 @@ router = APIRouter(prefix="/datasets", tags=["ask"])
     status_code=status.HTTP_200_OK,
     summary="Ask a question against a dataset",
 )
-async def ask_question(id: str, request: AskRequest) -> Any:
+@limiter.limit(lambda: settings.rate_limit_ask)
+async def ask_question(request: Request, id: str, body: AskRequest) -> Any:
     """Ask a question against an uploaded dataset.
 
     Flow: validate -> route -> plan/retrieve -> execute -> chart -> explain/answer -> AnswerResponse.
     """
     try:
-        return process_ask(dataset_id=id, question=request.question)
+        return process_ask(dataset_id=id, question=body.question)
     except FileValidationError as exc:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
