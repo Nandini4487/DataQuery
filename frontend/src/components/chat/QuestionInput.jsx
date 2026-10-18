@@ -1,18 +1,41 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { askQuestion } from '../../services/api'
 
-export default function QuestionInput({ datasetId, onAsk, onAnswerReceived, disabled, isAsking }) {
+export default function QuestionInput({
+  datasetId,
+  onAsk,
+  onAnswerReceived,
+  disabled,
+  isAsking,
+  rateLimitSeconds = 0,
+}) {
   const [question, setQuestion] = useState('')
   const [internalLoading, setInternalLoading] = useState(false)
   const [error, setError] = useState('')
   const [lastSubmitted, setLastSubmitted] = useState('')
+  const [retrySeconds, setRetrySeconds] = useState(rateLimitSeconds)
+
+  useEffect(() => {
+    if (rateLimitSeconds > 0) {
+      setRetrySeconds(rateLimitSeconds)
+    }
+  }, [rateLimitSeconds])
+
+  useEffect(() => {
+    if (retrySeconds <= 0) return
+    const timer = setInterval(() => {
+      setRetrySeconds((prev) => (prev <= 1 ? 0 : prev - 1))
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [retrySeconds])
 
   const loading = isAsking || internalLoading
+  const isBlocked = disabled || loading || retrySeconds > 0
 
   const handleSubmit = async (e) => {
     if (e) e.preventDefault()
     const trimmed = question.trim()
-    if (!trimmed || !datasetId || loading || disabled) return
+    if (!trimmed || !datasetId || isBlocked) return
 
     setError('')
 
@@ -36,6 +59,10 @@ export default function QuestionInput({ datasetId, onAsk, onAnswerReceived, disa
         onAnswerReceived(res.data, trimmed)
       }
     } else {
+      if (res.status === 429 || res.error === 'rate_limited') {
+        const secs = res.retryAfter != null ? res.retryAfter : 5
+        setRetrySeconds(secs)
+      }
       setError(res.message || res.data?.message || res.data?.error || 'Failed to analyze question.')
     }
   }
@@ -54,7 +81,7 @@ export default function QuestionInput({ datasetId, onAsk, onAnswerReceived, disa
   ]
 
   const handleSuggestionClick = (sq) => {
-    if (disabled || loading) return
+    if (isBlocked) return
     setQuestion(sq)
   }
 
@@ -92,11 +119,13 @@ export default function QuestionInput({ datasetId, onAsk, onAnswerReceived, disa
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             onKeyDown={handleKeyDown}
-            disabled={disabled || loading}
+            disabled={isBlocked}
             rows={3}
             placeholder={
               disabled
                 ? 'Upload a CSV dataset above to start asking questions…'
+                : retrySeconds > 0
+                ? `Rate limited. Please wait ${retrySeconds}s before asking again…`
                 : loading
                 ? 'Analyzing query with data engine… please wait'
                 : 'e.g. What is the total revenue? Press Enter to ask…'
@@ -130,7 +159,7 @@ export default function QuestionInput({ datasetId, onAsk, onAnswerReceived, disa
               <button
                 key={sq}
                 type="button"
-                disabled={loading}
+                disabled={isBlocked}
                 onClick={() => handleSuggestionClick(sq)}
                 className="text-xs px-2.5 py-1 rounded-md border bg-slate-50 hover:bg-slate-100 disabled:opacity-50 transition-colors text-slate-600 cursor-pointer disabled:cursor-not-allowed"
                 style={{ borderColor: 'var(--color-border)' }}
@@ -171,11 +200,15 @@ export default function QuestionInput({ datasetId, onAsk, onAnswerReceived, disa
         {/* Submit Actions */}
         <div className="flex items-center justify-between pt-1">
           <span className="text-xs text-slate-400">
-            {disabled ? 'No dataset active' : 'Shift+Enter for newline'}
+            {disabled
+              ? 'No dataset active'
+              : retrySeconds > 0
+              ? `Retry available in ${retrySeconds}s`
+              : 'Shift+Enter for newline'}
           </span>
           <button
             type="submit"
-            disabled={disabled || loading || !question.trim()}
+            disabled={isBlocked || !question.trim()}
             className="flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-lg text-white shadow-xs transition-opacity hover:opacity-90 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
             style={{ backgroundColor: 'var(--color-primary)' }}
           >
@@ -187,6 +220,8 @@ export default function QuestionInput({ datasetId, onAsk, onAnswerReceived, disa
                 </svg>
                 Analyzing…
               </>
+            ) : retrySeconds > 0 ? (
+              <span>Wait {retrySeconds}s</span>
             ) : (
               <>
                 <span>Submit Query</span>

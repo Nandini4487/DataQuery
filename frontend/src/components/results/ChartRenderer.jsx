@@ -9,83 +9,33 @@ import {
   CartesianGrid,
   Tooltip,
 } from 'recharts'
+import LoadingState from '../common/LoadingState'
+import ErrorMessage from '../common/ErrorMessage'
+import EmptyState from '../common/EmptyState'
 
 export default function ChartRenderer({ chartSpec, loading, error }) {
   // ── 1. LOADING STATE ──
   if (loading) {
-    return (
-      <div
-        className="w-full rounded-xl border p-8 text-center"
-        style={{
-          backgroundColor: 'var(--color-surface)',
-          borderColor: 'var(--color-border)',
-          borderRadius: 'var(--radius-card)',
-        }}
-      >
-        <svg
-          className="h-8 w-8 animate-spin mx-auto mb-3"
-          style={{ color: 'var(--color-primary)' }}
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-        >
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-        </svg>
-        <p className="text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
-          Generating visualization…
-        </p>
-      </div>
-    )
+    return <LoadingState message="Generating visualization…" />
   }
 
   // ── 2. ERROR STATE ──
   if (error) {
-    return (
-      <div
-        className="w-full rounded-xl border p-6 text-center"
-        style={{
-          backgroundColor: 'var(--color-surface)',
-          borderColor: 'var(--color-border)',
-          borderRadius: 'var(--radius-card)',
-        }}
-      >
-        <p className="text-sm font-semibold" style={{ color: 'var(--color-error)' }}>
-          Chart Generation Error
-        </p>
-        <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>
-          {error}
-        </p>
-      </div>
-    )
+    return <ErrorMessage title="Chart Generation Error" message={error} />
   }
 
   // ── 3. EMPTY STATE ──
   if (!chartSpec || !chartSpec.type || chartSpec.type === 'empty' || !chartSpec.data || chartSpec.data.length === 0) {
     return (
-      <div
-        className="w-full rounded-xl border p-8 text-center"
-        style={{
-          backgroundColor: 'var(--color-surface)',
-          borderColor: 'var(--color-border)',
-          borderRadius: 'var(--radius-card)',
-        }}
-      >
-        <div
-          className="mx-auto flex h-10 w-10 items-center justify-center rounded-full mb-3"
-          style={{ backgroundColor: '#F1F5F9', color: 'var(--color-text-secondary)' }}
-        >
+      <EmptyState
+        icon={
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
           </svg>
-        </div>
-        <h4 className="font-semibold text-sm" style={{ color: 'var(--color-text-primary)' }}>
-          No Chart Available
-        </h4>
-        <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>
-          Charts are automatically inferred when results contain metrics or groupings.
-        </p>
-      </div>
+        }
+        title="No Chart Available"
+        description="Charts are automatically inferred when results contain metrics or groupings."
+      />
     )
   }
 

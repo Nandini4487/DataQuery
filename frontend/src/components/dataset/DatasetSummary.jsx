@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react'
 import { getProfile } from '../../services/api'
+import LoadingState from '../common/LoadingState'
+import ErrorMessage from '../common/ErrorMessage'
+import EmptyState from '../common/EmptyState'
 
 export default function DatasetSummary({ datasetId, initialProfile }) {
   const [profile, setProfile] = useState(initialProfile ?? null)
@@ -17,13 +20,13 @@ export default function DatasetSummary({ datasetId, initialProfile }) {
     setLoading(true)
     setError('')
 
-    getProfile(datasetId).then(({ ok, data }) => {
+    getProfile(datasetId).then(({ ok, data, message }) => {
       if (!isMounted) return
       setLoading(false)
       if (ok) {
         setProfile(data)
       } else {
-        setError(data?.message || data?.error || 'Failed to load dataset profile.')
+        setError(message || data?.message || data?.error || 'Failed to load dataset profile.')
       }
     })
 
@@ -35,79 +38,26 @@ export default function DatasetSummary({ datasetId, initialProfile }) {
   // ── 1. EMPTY STATE ──
   if (!datasetId) {
     return (
-      <div
-        className="w-full rounded-xl border p-8 text-center"
-        style={{
-          backgroundColor: 'var(--color-surface)',
-          borderColor: 'var(--color-border)',
-          borderRadius: 'var(--radius-card)',
-        }}
-      >
-        <div
-          className="mx-auto flex h-10 w-10 items-center justify-center rounded-full mb-3"
-          style={{ backgroundColor: '#F1F5F9', color: 'var(--color-text-secondary)' }}
-        >
+      <EmptyState
+        icon={
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
-        </div>
-        <h4 className="font-semibold text-sm" style={{ color: 'var(--color-text-primary)' }}>
-          No Dataset Selected
-        </h4>
-        <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>
-          Upload a CSV above to inspect its columns, types, and statistics.
-        </p>
-      </div>
+        }
+        title="No Dataset Selected"
+        description="Upload a CSV above to inspect its columns, types, and statistics."
+      />
     )
   }
 
   // ── 2. LOADING STATE ──
   if (loading) {
-    return (
-      <div
-        className="w-full rounded-xl border p-8 text-center"
-        style={{
-          backgroundColor: 'var(--color-surface)',
-          borderColor: 'var(--color-border)',
-          borderRadius: 'var(--radius-card)',
-        }}
-      >
-        <svg
-          className="h-8 w-8 animate-spin mx-auto mb-3"
-          style={{ color: 'var(--color-primary)' }}
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-        >
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-        </svg>
-        <p className="text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
-          Profiling dataset metrics…
-        </p>
-      </div>
-    )
+    return <LoadingState message="Profiling dataset metrics…" />
   }
 
   // ── 3. ERROR STATE ──
   if (error) {
-    return (
-      <div
-        className="w-full rounded-xl border p-6 text-center"
-        style={{
-          backgroundColor: 'var(--color-surface)',
-          borderColor: 'var(--color-border)',
-          borderRadius: 'var(--radius-card)',
-        }}
-      >
-        <p className="text-sm font-semibold" style={{ color: 'var(--color-error)' }}>
-          Error Loading Profile
-        </p>
-        <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>
-          {error}
-        </p>
-      </div>
-    )
+    return <ErrorMessage title="Error Loading Profile" message={error} />
   }
 
   // ── 4. SUCCESS STATE ──

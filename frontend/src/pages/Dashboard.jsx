@@ -12,6 +12,7 @@ export default function Dashboard() {
   const [healthStatus, setHealthStatus] = useState('loading') // 'loading' | 'ok' | 'error'
   const [currentDataset, setCurrentDataset] = useState(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
 
   // Reference documents state for current dataset
   const [documents, setDocuments] = useState([])
@@ -21,6 +22,7 @@ export default function Dashboard() {
   // In-memory chat messages state for current dataset (no persistence)
   const [messages, setMessages] = useState([])
   const [isAsking, setIsAsking] = useState(false)
+  const [askRateLimitSeconds, setAskRateLimitSeconds] = useState(0)
 
   useEffect(() => {
     healthCheck().then(({ ok, data }) => {
@@ -54,6 +56,8 @@ export default function Dashboard() {
     setIsAsking(false)
     setDocuments([])
     setDocsError('')
+    setDeleteError('')
+    setAskRateLimitSeconds(0)
     if (meta?.dataset_id) {
       fetchDocuments(meta.dataset_id)
     }
@@ -65,14 +69,21 @@ export default function Dashboard() {
     setIsAsking(false)
     setDocuments([])
     setDocsError('')
+    setDeleteError('')
+    setAskRateLimitSeconds(0)
   }
 
   const handleDelete = async () => {
     if (!currentDataset?.dataset_id) return
     setIsDeleting(true)
-    await deleteDataset(currentDataset.dataset_id)
+    setDeleteError('')
+    const res = await deleteDataset(currentDataset.dataset_id)
     setIsDeleting(false)
-    handleReset()
+    if (res.ok) {
+      handleReset()
+    } else {
+      setDeleteError(res.message || 'Failed to delete dataset.')
+    }
   }
 
   const handleAskQuestion = async (questionText) => {
@@ -95,6 +106,11 @@ export default function Dashboard() {
 
     const res = await askQuestion(currentDataset.dataset_id, questionText)
     setIsAsking(false)
+
+    if (!res.ok && (res.status === 429 || res.error === 'rate_limited')) {
+      const secs = res.retryAfter != null ? res.retryAfter : 5
+      setAskRateLimitSeconds(secs)
+    }
 
     setMessages((prev) =>
       prev.map((msg) => {
@@ -188,6 +204,25 @@ export default function Dashboard() {
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8 flex flex-col gap-8">
         {/* 1. Upload Section */}
         <section aria-labelledby="upload-heading">
+          {deleteError && (
+            <div
+              className="mb-3 p-3 rounded-lg border text-xs flex items-center justify-between gap-2"
+              style={{
+                backgroundColor: '#FEF2F2',
+                borderColor: '#FECACA',
+                color: 'var(--color-error)',
+              }}
+            >
+              <span>{deleteError}</span>
+              <button
+                type="button"
+                onClick={() => setDeleteError('')}
+                className="text-rose-700 hover:text-rose-900 font-bold px-1.5 py-0.5 rounded text-xs cursor-pointer focus:outline-hidden"
+              >
+                ✕
+              </button>
+            </div>
+          )}
           <div className="flex items-center justify-between mb-2">
             <h2
               id="upload-heading"
@@ -315,6 +350,7 @@ export default function Dashboard() {
             datasetId={currentDataset?.dataset_id}
             disabled={!currentDataset}
             isAsking={isAsking}
+            rateLimitSeconds={askRateLimitSeconds}
             onAsk={handleAskQuestion}
           />
         </section>

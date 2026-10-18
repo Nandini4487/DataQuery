@@ -95,6 +95,76 @@ export default function ChatMessage({ message, question: qProp, answer: aProp, e
           textColor: '#991B1B',
           icon: '⚠️',
         }
+      case 'rate_limited':
+        return {
+          title: 'Rate Limit Reached',
+          message: rawMsg || 'Too many requests. Please wait a moment and try again.',
+          tip: 'Please pause before submitting another question to avoid exhausting server rate limits.',
+          bg: '#FEF2F2',
+          border: '#FECACA',
+          textColor: '#991B1B',
+          icon: '⏱️',
+        }
+      case 'dataset_not_found':
+        return {
+          title: 'Dataset Not Found',
+          message: rawMsg || 'The dataset was not found or has expired. Please upload your CSV again.',
+          tip: 'Datasets are ephemeral. Upload a new CSV above to continue.',
+          bg: '#FEF2F2',
+          border: '#FECACA',
+          textColor: '#991B1B',
+          icon: '📁',
+        }
+      case 'document_not_found':
+        return {
+          title: 'Document Not Found',
+          message: rawMsg || 'The referenced document was not found.',
+          tip: 'Please upload the document again.',
+          bg: '#FEF2F2',
+          border: '#FECACA',
+          textColor: '#991B1B',
+          icon: '📄',
+        }
+      case 'invalid_request':
+        return {
+          title: 'Invalid Request',
+          message: rawMsg || 'Invalid request parameter. Please verify your query.',
+          tip: 'Ensure the question is not empty or overly long.',
+          bg: '#FEF2F2',
+          border: '#FECACA',
+          textColor: '#991B1B',
+          icon: '⚠️',
+        }
+      case 'file_too_large':
+        return {
+          title: 'File Too Large',
+          message: rawMsg || 'The file exceeds the maximum 10 MB limit.',
+          tip: 'Please upload files under 10 MB.',
+          bg: '#FEF2F2',
+          border: '#FECACA',
+          textColor: '#991B1B',
+          icon: '📁',
+        }
+      case 'network_error':
+        return {
+          title: 'Connection Error',
+          message: rawMsg || 'Could not reach the server. Is backend running?',
+          tip: 'Check that the FastAPI server is running on port 8000.',
+          bg: '#FEF2F2',
+          border: '#FECACA',
+          textColor: '#991B1B',
+          icon: '🔌',
+        }
+      case 'internal_error':
+        return {
+          title: 'Server Error',
+          message: rawMsg || 'An unexpected server error occurred.',
+          tip: 'Please try again in a few moments.',
+          bg: '#FEF2F2',
+          border: '#FECACA',
+          textColor: '#991B1B',
+          icon: '⚠️',
+        }
       default:
         return {
           title: 'Query Notice',

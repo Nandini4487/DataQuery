@@ -1,14 +1,23 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { uploadDataset } from '../../services/api'
 
 export default function FileUploader({ onUploadSuccess, currentDataset, onReset }) {
   const [status, setStatus] = useState('idle') // 'idle' | 'dragging' | 'loading' | 'success' | 'error'
   const [errorMessage, setErrorMessage] = useState('')
   const [uploadedInfo, setUploadedInfo] = useState(currentDataset ?? null)
+  const [retrySeconds, setRetrySeconds] = useState(0)
   const fileInputRef = useRef(null)
 
+  useEffect(() => {
+    if (retrySeconds <= 0) return
+    const timer = setInterval(() => {
+      setRetrySeconds((prev) => (prev <= 1 ? 0 : prev - 1))
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [retrySeconds])
+
   const handleFile = async (file) => {
-    if (!file) return
+    if (!file || retrySeconds > 0) return
 
     // 1. Client-side extension validation
     if (!file.name.toLowerCase().endsWith('.csv')) {
@@ -37,7 +46,11 @@ export default function FileUploader({ onUploadSuccess, currentDataset, onReset 
       }
     } else {
       setStatus('error')
-      const msg = res.data?.message || res.data?.error || 'Failed to upload dataset.'
+      if (res.status === 429 || res.error === 'rate_limited') {
+        const secs = res.retryAfter != null ? res.retryAfter : 5
+        setRetrySeconds(secs)
+      }
+      const msg = res.message || res.data?.message || res.data?.error || 'Failed to upload dataset.'
       setErrorMessage(msg)
     }
   }
@@ -194,11 +207,12 @@ export default function FileUploader({ onUploadSuccess, currentDataset, onReset 
           <div className="flex gap-2 mt-4">
             <button
               type="button"
+              disabled={retrySeconds > 0}
               onClick={() => fileInputRef.current?.click()}
-              className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition-opacity hover:opacity-90 cursor-pointer"
+              className="text-xs font-semibold px-4 py-2 rounded-lg text-white transition-opacity hover:opacity-90 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ backgroundColor: 'var(--color-primary)' }}
             >
-              Try Again
+              {retrySeconds > 0 ? `Wait ${retrySeconds}s` : 'Try Again'}
             </button>
             <button
               type="button"
@@ -218,8 +232,12 @@ export default function FileUploader({ onUploadSuccess, currentDataset, onReset 
           onDragOver={onDragOver}
           onDragLeave={onDragLeave}
           onDrop={onDrop}
-          onClick={() => fileInputRef.current?.click()}
-          className="flex flex-col items-center justify-center py-10 px-4 rounded-lg border-2 border-dashed cursor-pointer transition-colors"
+          onClick={() => {
+            if (retrySeconds <= 0) fileInputRef.current?.click()
+          }}
+          className={`flex flex-col items-center justify-center py-10 px-4 rounded-lg border-2 border-dashed transition-colors ${
+            retrySeconds > 0 ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+          }`}
           style={{
             borderColor: status === 'dragging' ? 'var(--color-primary)' : 'var(--color-border)',
             backgroundColor: status === 'dragging' ? '#EFF6FF' : '#FAFAFA',

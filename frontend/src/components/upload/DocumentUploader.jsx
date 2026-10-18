@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { uploadDocument } from '../../services/api'
 
 /**
@@ -12,10 +12,21 @@ export default function DocumentUploader({ datasetId, onUploadSuccess, disabled 
   const [status, setStatus] = useState('idle') // 'idle' | 'dragging' | 'loading' | 'success' | 'error'
   const [errorMessage, setErrorMessage] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
+  const [retrySeconds, setRetrySeconds] = useState(0)
   const fileInputRef = useRef(null)
 
+  useEffect(() => {
+    if (retrySeconds <= 0) return
+    const timer = setInterval(() => {
+      setRetrySeconds((prev) => (prev <= 1 ? 0 : prev - 1))
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [retrySeconds])
+
+  const isBlocked = disabled || status === 'loading' || retrySeconds > 0
+
   const handleFile = async (file) => {
-    if (!file || !datasetId || status === 'loading' || disabled) return
+    if (!file || !datasetId || isBlocked) return
 
     const name = file.name.toLowerCase()
     const isPdf = name.endsWith('.pdf')
@@ -52,6 +63,10 @@ export default function DocumentUploader({ datasetId, onUploadSuccess, disabled 
       }
     } else {
       setStatus('error')
+      if (res.status === 429 || res.error === 'rate_limited') {
+        const secs = res.retryAfter != null ? res.retryAfter : 5
+        setRetrySeconds(secs)
+      }
       const msg = res.message || res.data?.message || res.data?.error || 'Failed to upload document.'
       setErrorMessage(msg)
     }
@@ -60,7 +75,7 @@ export default function DocumentUploader({ datasetId, onUploadSuccess, disabled 
   const onDragOver = (e) => {
     e.preventDefault()
     e.stopPropagation()
-    if (status !== 'loading' && !disabled) {
+    if (!isBlocked) {
       setStatus('dragging')
     }
   }
@@ -76,7 +91,7 @@ export default function DocumentUploader({ datasetId, onUploadSuccess, disabled 
   const onDrop = (e) => {
     e.preventDefault()
     e.stopPropagation()
-    if (status === 'loading' || disabled) return
+    if (isBlocked) return
     const files = e.dataTransfer?.files
     if (files && files.length > 0) {
       handleFile(files[0])
@@ -93,13 +108,13 @@ export default function DocumentUploader({ datasetId, onUploadSuccess, disabled 
   }
 
   const triggerBrowse = () => {
-    if (status !== 'loading' && !disabled && fileInputRef.current) {
+    if (!isBlocked && fileInputRef.current) {
       fileInputRef.current.click()
     }
   }
 
   const handleKeyDown = (e) => {
-    if ((e.key === 'Enter' || e.key === ' ') && status !== 'loading' && !disabled) {
+    if ((e.key === 'Enter' || e.key === ' ') && !isBlocked) {
       e.preventDefault()
       triggerBrowse()
     }
@@ -120,7 +135,7 @@ export default function DocumentUploader({ datasetId, onUploadSuccess, disabled 
         accept=".pdf,.txt"
         className="hidden"
         onChange={onFileInputChange}
-        disabled={status === 'loading' || disabled}
+        disabled={isBlocked}
         aria-label="Upload reference document (.pdf or .txt)"
       />
 
@@ -133,15 +148,15 @@ export default function DocumentUploader({ datasetId, onUploadSuccess, disabled 
 
       <div
         role="button"
-        tabIndex={disabled || status === 'loading' ? -1 : 0}
+        tabIndex={isBlocked ? -1 : 0}
         onClick={triggerBrowse}
         onKeyDown={handleKeyDown}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
         onDrop={onDrop}
-        aria-disabled={disabled || status === 'loading'}
-        className={`flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg cursor-pointer transition-all focus:outline-hidden focus:ring-2 focus:ring-blue-500 ${
-          disabled || status === 'loading' ? 'cursor-not-allowed opacity-60' : 'hover:border-blue-400 hover:bg-slate-50/60'
+        aria-disabled={isBlocked}
+        className={`flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg transition-all focus:outline-hidden focus:ring-2 focus:ring-blue-500 ${
+          isBlocked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:border-blue-400 hover:bg-slate-50/60'
         }`}
         style={{
           borderColor: status === 'dragging' ? 'var(--color-primary)' : 'var(--color-border)',

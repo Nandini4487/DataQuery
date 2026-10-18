@@ -1,51 +1,16 @@
+import LoadingState from '../common/LoadingState'
+import ErrorMessage from '../common/ErrorMessage'
+import EmptyState from '../common/EmptyState'
+
 export default function ResultTable({ table, loading, error }) {
   // ── 1. LOADING STATE ──
   if (loading) {
-    return (
-      <div
-        className="w-full rounded-xl border p-8 text-center"
-        style={{
-          backgroundColor: 'var(--color-surface)',
-          borderColor: 'var(--color-border)',
-          borderRadius: 'var(--radius-card)',
-        }}
-      >
-        <svg
-          className="h-8 w-8 animate-spin mx-auto mb-3"
-          style={{ color: 'var(--color-primary)' }}
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-        >
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-        </svg>
-        <p className="text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
-          Computing results with Pandas engine…
-        </p>
-      </div>
-    )
+    return <LoadingState message="Computing results with Pandas engine…" />
   }
 
   // ── 2. ERROR STATE ──
   if (error) {
-    return (
-      <div
-        className="w-full rounded-xl border p-6 text-center"
-        style={{
-          backgroundColor: 'var(--color-surface)',
-          borderColor: 'var(--color-border)',
-          borderRadius: 'var(--radius-card)',
-        }}
-      >
-        <p className="text-sm font-semibold" style={{ color: 'var(--color-error)' }}>
-          Failed to Display Result Table
-        </p>
-        <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>
-          {error}
-        </p>
-      </div>
-    )
+    return <ErrorMessage title="Failed to Display Result Table" message={error} />
   }
 
   // ── 3. EMPTY STATE ──
@@ -54,29 +19,15 @@ export default function ResultTable({ table, loading, error }) {
 
   if (!rows || rows.length === 0) {
     return (
-      <div
-        className="w-full rounded-xl border p-8 text-center"
-        style={{
-          backgroundColor: 'var(--color-surface)',
-          borderColor: 'var(--color-border)',
-          borderRadius: 'var(--radius-card)',
-        }}
-      >
-        <div
-          className="mx-auto flex h-10 w-10 items-center justify-center rounded-full mb-3"
-          style={{ backgroundColor: '#F1F5F9', color: 'var(--color-text-secondary)' }}
-        >
+      <EmptyState
+        icon={
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
           </svg>
-        </div>
-        <h4 className="font-semibold text-sm" style={{ color: 'var(--color-text-primary)' }}>
-          No Result Table Yet
-        </h4>
-        <p className="text-xs mt-1" style={{ color: 'var(--color-text-secondary)' }}>
-          Ask a question above to execute a plan and view computed tabular results.
-        </p>
-      </div>
+        }
+        title="No Result Table Yet"
+        description="Ask a question above to execute a plan and view computed tabular results."
+      />
     )
   }
 
